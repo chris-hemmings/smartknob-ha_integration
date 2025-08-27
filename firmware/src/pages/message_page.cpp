@@ -12,6 +12,11 @@ void MessagePage::handleUserInput(input_t input, int input_data, PB_SmartKnobSta
     }
 }
 
+void MessagePage::handleState(PB_SmartKnobState state) {
+    // Just update the display - InterfaceTask handles the message content
+    // The message is already set via setMessage() calls from InterfaceTask
+}
+
 void MessagePage::setMessage(const char* message) {
     strncpy(config_.view_config.description, message, sizeof(config_.view_config.description) - 1);
     config_.position_nonce++; // Force UI update

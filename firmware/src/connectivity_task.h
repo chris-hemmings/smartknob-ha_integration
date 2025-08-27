@@ -14,6 +14,8 @@ struct ReceivedMessage {
     int trigger_value;
 };
 
+typedef std::function<void(const String&, int)> MqttMessageCallback;
+
 class ConnectivityTask : public Task<ConnectivityTask> {
     friend class Task<ConnectivityTask>; // Allow base Task to invoke protected run()
 
@@ -24,6 +26,7 @@ public:
     void sendMqttMessage(Message message);
     void handleIncomingMessage(ReceivedMessage received_message);
     void setLogger(Logger* logger);
+    void setMqttMessageCallback(MqttMessageCallback callback);
 
     // Device state getters/setters
     int getLightState() const { return light_state_; }
@@ -36,7 +39,9 @@ public:
     void setFanState(int state);
     void setBlindsState(int state);
     void setClimateState(int state);
-
+    static ConnectivityTask* instance;
+    // MQTT connection status
+    bool isMqttConnected() const;
 protected:
     void run();
 
@@ -44,7 +49,6 @@ private:
     QueueHandle_t queue_;
     static const int QUEUE_SIZE = 5;
     Logger* logger_;
-    static ConnectivityTask* instance;  // Declare static instance pointer
     char buf_[512];
     void initWiFi();
     StorageManager storage_;
@@ -54,12 +58,14 @@ private:
     void log(const char* msg);
     void handleCallback(char* topic, byte* payload, unsigned int length);
     void sendMqttKnobStateDiscoveryMsg();
-
     // Device states
     int light_state_ = 0;
     int lamps_state_ = 0;
     int fan_state_ = 0;
     int blinds_state_ = 0;
     int climate_state_ = 0;
+    
+    // MQTT message callback
+    MqttMessageCallback mqtt_message_callback_ = nullptr;
 
 };

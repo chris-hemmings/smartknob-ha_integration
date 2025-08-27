@@ -44,7 +44,23 @@ void DialView::updateView(PB_SmartKnobState state) {
         set_screen_gradient(255);
     }
 
-    lv_label_set_text_fmt(label_cur_pos, "%d", state.current_position);
+    // Check if this is the blinds page and show custom text
+    if (strstr(state.config.view_config.description, "Blinds") != nullptr) {
+        if (state.current_position == 0) {
+            lv_label_set_text(label_cur_pos, "Closed");
+        } else {
+            lv_label_set_text(label_cur_pos, "Open");
+        }
+    } else if (strstr(state.config.view_config.description, "Air Con") != nullptr) {
+        if (state.current_position == 0) {
+            lv_label_set_text(label_cur_pos, "Off");
+        } else {
+            lv_label_set_text(label_cur_pos, "On");
+        }
+    } else {
+        // Default numeric display for other pages
+        lv_label_set_text_fmt(label_cur_pos, "%d", state.current_position);
+    }
     lv_obj_set_style_text_align(label_cur_pos, LV_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_align(label_cur_pos, LV_ALIGN_CENTER, 0, -25);
 

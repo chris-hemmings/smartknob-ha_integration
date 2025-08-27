@@ -22,7 +22,7 @@ void FanPage::handleState(PB_SmartKnobState state) {
 
     if (last_published_position != state.current_position) {
         // Only send MQTT messages after initial delay and subsequent rate limiting
-        if (millis() - page_load_time_ >= INITIAL_DELAY_MS && millis() - last_publish_time > 500) {
+        if (millis() - page_load_time_ >= INITIAL_DELAY_MS && millis() - last_publish_time > PUBLISH_DELAY_MS) {
             int current_position = (100 / 6) * state.current_position;
             Message msg = {
                 .trigger_name = "fan",

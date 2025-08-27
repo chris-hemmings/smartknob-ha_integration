@@ -9,16 +9,23 @@ class MessagePage : public Page {
         ~MessagePage() {}
 
         PB_SmartKnobConfig* getPageConfig() override;
-        void handleState(PB_SmartKnobState state) override {};
+        void handleState(PB_SmartKnobState state) override;
         void handleUserInput(input_t input, int input_data, PB_SmartKnobState state) override;
         
         void setMessage(const char* message);
         void setCallback(std::function<void()> callback) {
             completion_callback_ = callback;
         }
+        void setStrainCalibrationMode(bool active) {
+            strain_calibration_active_ = active;
+            strain_calibration_start_time_ = millis();
+        }
 
     private:
         std::function<void()> completion_callback_;
+        bool strain_calibration_active_ = false;
+        uint32_t strain_calibration_start_time_ = 0;
+        uint8_t strain_calibration_step_ = 0;
         
         PB_ViewConfig view_config = {
             VIEW_MESSAGE,

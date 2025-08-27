@@ -37,7 +37,7 @@ class DisplayTask : public Task<DisplayTask> {
 
     private:
         lv_obj_t * screen;
-
+        
         QueueHandle_t knob_state_queue_;
 
         QueueHandle_t listener_;

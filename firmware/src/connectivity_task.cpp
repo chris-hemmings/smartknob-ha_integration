@@ -35,7 +35,6 @@ ConnectivityTask::~ConnectivityTask() {}
 
 boolean ConnectivityTask::reconnect() {
     bool connected = mqtt.connect(smartknob_id.c_str(), MQTT_USERNAME, MQTT_PW);
-
     if (connected) {
         snprintf(buf_, sizeof(buf_), "MQTT Connected...");
         log(buf_);
@@ -103,6 +102,11 @@ void ConnectivityTask::handleCallback(char* topic, byte* payload, unsigned int l
         } else if (msg.trigger_name == "climate") {
             setClimateState(msg.trigger_value);
         }
+        
+        // Notify interface task about the MQTT message
+        if (mqtt_message_callback_) {
+            mqtt_message_callback_(msg.trigger_name, msg.trigger_value);
+        }
     }
 }
 
@@ -158,6 +162,14 @@ void ConnectivityTask::run() {
     mqtt.loop();
     
     while (1) {
+        // WiFi reconnection logic
+        if (WiFi.status() != WL_CONNECTED) {
+            snprintf(buf_, sizeof(buf_), "WiFi disconnected. Attempting to reconnect...");
+            log(buf_);
+            WiFi.reconnect();
+            vTaskDelay(pdMS_TO_TICKS(1000)); // Wait a bit before next check
+            continue; // Skip MQTT logic until WiFi is back
+        }        
         if (!mqtt.connected()) {
             long now = millis();
             if (now - lastReconnectAttempt > 5000) {
@@ -220,6 +232,10 @@ void ConnectivityTask::setLogger(Logger* logger) {
     logger_ = logger;
 }
 
+void ConnectivityTask::setMqttMessageCallback(MqttMessageCallback callback) {
+    mqtt_message_callback_ = callback;
+}
+
 void ConnectivityTask::log(const char* msg) {
     if (logger_ != nullptr) {
         logger_->log(msg);
@@ -257,6 +273,10 @@ void ConnectivityTask::setBlindsState(int state) {
 void ConnectivityTask::setClimateState(int state) {
     climate_state_ = state;
     storage_.saveState("climate", state);
+}
+
+bool ConnectivityTask::isMqttConnected() const {
+    return mqtt.connected();
 }
 
 // Device state variables

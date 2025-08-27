@@ -1,5 +1,6 @@
 #include "settings_page.h"
 #include "message_page.h"
+#include <Arduino.h>
 
 
 PB_SmartKnobConfig * SettingsPage::getPageConfig() {
@@ -21,6 +22,32 @@ void SettingsPage::handleMenuInput(int position) {
     case 1:
     {
         motor_calibration_callback_();
+        break;
+    }
+    case 2:
+    {
+        // Set up message page callback to return to settings
+        message_page_->setCallback([this] () {
+            if (page_change_callback_) {
+                page_change_callback_(SETTINGS_PAGE);
+            }
+        });
+        
+        // Set initial strain calibration message and activate mode
+        message_page_->setMessage("Strain Calibration\n\nAfter 2 seconds, press and hold.");
+        message_page_->setStrainCalibrationMode(true);
+        
+        strain_calibration_callback_();
+        // Navigate to message page to show calibration progress
+        if (page_change_callback_) {
+            page_change_callback_(MESSAGE_PAGE);
+        }
+        break;
+    }
+    case 3:
+    {
+        // Restart the device
+        ESP.restart();
         break;
     }
     default:

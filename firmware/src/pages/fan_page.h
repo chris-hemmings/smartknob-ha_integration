@@ -19,6 +19,7 @@ class FanPage: public Page {
         void checkReceiveQueue();
         unsigned long page_load_time_ = 0;  // Track when the page was loaded
         static const unsigned long INITIAL_DELAY_MS = 750;  // Configurable delay
+        static const unsigned long PUBLISH_DELAY_MS = 1000;  // Configurable delay
         uint32_t last_publish_time;
         uint32_t last_published_position;
         Logger* logger_ = nullptr;

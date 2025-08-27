@@ -42,7 +42,7 @@ void setup() {
 
   connectivity_task.setLogger(&interface_task);
   connectivity_task.begin();
-
+  
   // Free up the Arduino loop task
   vTaskDelete(NULL);
 }

@@ -1,4 +1,5 @@
 #include "climate_page.h"
+#include <string.h>
 #define TIMEOUT_MS 5000  // 5 seconds timeout
 
 
@@ -16,12 +17,23 @@ void ClimatePage::checkReceiveQueue() {
     }
 }
 void ClimatePage::handleState(PB_SmartKnobState state) {
+    checkReceiveQueue();
+
+    // Update display text based on current position
+    if (state.current_position == 0) {
+        strncpy(config_.view_config.description, "Air Con\nOff", sizeof(config_.view_config.description) - 1);
+        config_.view_config.description[sizeof(config_.view_config.description) - 1] = '\0';
+    } else {
+        strncpy(config_.view_config.description, "Air Con\nOn", sizeof(config_.view_config.description) - 1);
+        config_.view_config.description[sizeof(config_.view_config.description) - 1] = '\0';
+    }
+
     if (last_published_position != state.current_position) {
-        if (millis() - page_load_time_ >= INITIAL_DELAY_MS && millis() - last_publish_time > 500) {
+        if (millis() - page_load_time_ >= INITIAL_DELAY_MS && millis() - last_publish_time > PUBLISH_DELAY_MS) {
             int current_position = state.current_position;
             Message msg = {
                 .trigger_name = "climate",
-                .trigger_value = current_position
+                .trigger_value = current_position  // Still sends 0 or 1 to MQTT
             };
             connectivity_task_.sendMqttMessage(msg);
             last_publish_time = millis();

@@ -77,4 +77,32 @@ void setup_circle_button(lv_obj_t ** button, int index, PB_SmartKnobConfig confi
 
     lv_obj_set_user_data(*button, (void*) index);
     lv_obj_add_event_cb(*button, button_event_cb, LV_EVENT_PRESSED, NULL);
+    
+    // Hide button if menu entry is empty (no description or icon)
+    if (strlen(config.view_config.menu_entries[index].description) == 0 || 
+        strlen(config.view_config.menu_entries[index].icon) == 0) {
+        lv_obj_add_flag(*button, LV_OBJ_FLAG_HIDDEN);
+    }
 }
+
+// view_util.cpp
+lv_obj_t* setup_wifi_canvas(lv_obj_t* parent, lv_obj_t* label_desc, lv_color_t** wifi_buf_ptr, int size) {
+    *wifi_buf_ptr = (lv_color_t*)heap_caps_malloc(LV_CANVAS_BUF_SIZE_TRUE_COLOR(size, size) * sizeof(lv_color_t), MALLOC_CAP_8BIT);
+    lv_obj_t* wifi_canvas = lv_canvas_create(parent);
+    lv_canvas_set_buffer(wifi_canvas, *wifi_buf_ptr, size, size, LV_IMG_CF_TRUE_COLOR);
+    lv_obj_align_to(wifi_canvas, label_desc, LV_ALIGN_OUT_BOTTOM_MID, -13, 4);
+    lv_obj_move_background(wifi_canvas);
+    lv_obj_add_flag(wifi_canvas, LV_OBJ_FLAG_HIDDEN);
+    return wifi_canvas;
+}
+
+// view_util.cpp
+lv_obj_t* setup_mqtt_canvas(lv_obj_t* parent, lv_obj_t* label_desc, lv_color_t** mqtt_buf_ptr, int size) {
+    *mqtt_buf_ptr = (lv_color_t*)heap_caps_malloc(LV_CANVAS_BUF_SIZE_TRUE_COLOR(size, size) * sizeof(lv_color_t), MALLOC_CAP_8BIT);
+    lv_obj_t* mqtt_canvas = lv_canvas_create(parent);
+    lv_canvas_set_buffer(mqtt_canvas, *mqtt_buf_ptr, size, size, LV_IMG_CF_TRUE_COLOR);
+    lv_obj_align_to(mqtt_canvas, label_desc, LV_ALIGN_OUT_BOTTOM_MID, 13, 4);
+    lv_obj_move_background(mqtt_canvas);
+    lv_obj_add_flag(mqtt_canvas, LV_OBJ_FLAG_HIDDEN);
+    return mqtt_canvas;
+} 

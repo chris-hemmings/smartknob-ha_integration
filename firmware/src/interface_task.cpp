@@ -48,6 +48,34 @@ InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, Dis
         climate_page_(connectivity_task_),
         settings_page_([this] () {
             motor_task_.runCalibration();
+        }, [this] () {
+            // Strain calibration callback
+            if (strain_calibration_step_ == 0) {
+                log("Strain calibration step 1: Don't touch the knob, then press 'S' again");
+                strain_calibration_step_ = 1;
+                strain_calibration_active_ = true;  // Enable automatic mode for settings menu
+                // Set initial message for settings menu trigger
+                message_page_.setMessage("Calibration\n After 2 seconds,\n hold.");
+            } else if (strain_calibration_step_ == 1) {
+                configuration_value_.strain.idle_value = strain_reading_;
+                snprintf(buf_, sizeof(buf_), "  idle_value=%d", configuration_value_.strain.idle_value);
+                log(buf_);
+                log("Strain calibration step 2: Push and hold down the knob with medium pressure, and press 'S' again");
+                strain_calibration_step_ = 2;
+            } else if (strain_calibration_step_ == 2) {
+                configuration_value_.strain.press_delta = strain_reading_ - configuration_value_.strain.idle_value;
+                configuration_value_.has_strain = true;
+                snprintf(buf_, sizeof(buf_), "  press_delta=%d", configuration_value_.strain.press_delta);
+                log(buf_);
+                log("Strain calibration complete! Saving...");
+                strain_calibration_step_ = 0;
+                strain_calibration_active_ = false;
+                if (configuration_->setStrainCalibrationAndSave(configuration_value_.strain)) {
+                    log("  Saved!");
+                } else {
+                    log("  FAILED to save config!!!");
+                }
+            }
         }),
         demo_page_([this] (PB_SmartKnobConfig& config) {
             applyConfig(config, false);
@@ -191,10 +219,10 @@ void InterfaceTask::run() {
                 break;
             case LIGHTS_PAGE:
                 current_page = &lights_page_;
-                break;
+                break;                
             case LAMPS_PAGE:
                 current_page = &lamps_page_;
-                break;                
+                break;
             case FAN_PAGE:
                 current_page = &fan_page_;
                 break;
@@ -223,12 +251,21 @@ void InterfaceTask::run() {
     climate_page_.setPageChangeCallback(page_change_callback);
     demo_page_.setPageChangeCallback(page_change_callback);
     settings_page_.setPageChangeCallback(page_change_callback);
+    message_page_.setPageChangeCallback(page_change_callback);
 
     // Interface loop:
     while (1) {
         if (xQueueReceive(knob_state_queue_, &latest_state_, 0) == pdTRUE) {
             publishState();
             current_page->handleState(latest_state_);
+        }
+
+        // Update message page if it's the current page
+        static uint32_t last_message_update = 0;
+        if (current_page == &message_page_ && millis() - last_message_update > 100) {
+            // Force message page configuration update
+            applyConfig(*message_page_.getPageConfig(), false);
+            last_message_update = millis();
         }
 
         current_protocol_->loop();
@@ -337,6 +374,54 @@ void InterfaceTask::updateHardware() {
                         }
                     } else {
                         press_readings = 0;
+                    }
+                }
+            }
+            
+            // Automatic strain calibration logic (for settings menu trigger)
+            if (strain_calibration_active_ && strain_calibration_step_ > 0) {
+                static uint32_t calibration_timer = 0;
+                static bool calibration_timer_started = false;
+                
+                if (!calibration_timer_started) {
+                    calibration_timer = millis();
+                    calibration_timer_started = true;
+                    message_page_.setMessage("Calibration\nDont touch the knob.");
+                }
+                
+                // Progress through steps automatically after 2 seconds
+                if (millis() - calibration_timer > 2000) {
+                    if (strain_calibration_step_ == 1) {
+                        // Step 1: Get idle value after 2 seconds
+                        configuration_value_.strain.idle_value = strain_reading_;
+                        snprintf(buf_, sizeof(buf_), "  idle_value=%d", configuration_value_.strain.idle_value);
+                        log(buf_);
+                        
+                        message_page_.setMessage("Calibration\nPress and hold");
+                        
+                        log("Strain calibration step 2: Press and hold for 2 seconds to measure pressure");
+                        strain_calibration_step_ = 2;
+                        calibration_timer = millis();
+                    } else if (strain_calibration_step_ == 2) {
+                        // Step 2: Get pressed value after 2 seconds
+                        configuration_value_.strain.press_delta = strain_reading_ - configuration_value_.strain.idle_value;
+                        configuration_value_.has_strain = true;
+                        snprintf(buf_, sizeof(buf_), "  press_delta=%d", configuration_value_.strain.press_delta);
+                        log(buf_);
+                        
+                        snprintf(buf_, sizeof(buf_), "Calibration Complete!\nPress to go back", 
+                                configuration_value_.strain.idle_value, configuration_value_.strain.press_delta);
+                        message_page_.setMessage(buf_);
+                        
+                        log("Strain calibration complete! Saving...");
+                        strain_calibration_step_ = 0;
+                        strain_calibration_active_ = false;
+                        calibration_timer_started = false;
+                        if (configuration_->setStrainCalibrationAndSave(configuration_value_.strain)) {
+                            log("  Saved!");
+                        } else {
+                            log("  FAILED to save config!!!");
+                        }
                     }
                 }
             }

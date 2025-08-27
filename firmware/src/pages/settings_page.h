@@ -7,8 +7,8 @@ class MessagePage;  // Forward declaration
 
 class SettingsPage: public Page {
     public:
-        SettingsPage(MotorCalibrationCallback motor_calibration_callback) : 
-            Page(), motor_calibration_callback_(motor_calibration_callback) {}
+        SettingsPage(MotorCalibrationCallback motor_calibration_callback, StrainCalibrationCallback strain_calibration_callback) : 
+            Page(), motor_calibration_callback_(motor_calibration_callback), strain_calibration_callback_(strain_calibration_callback) {}
 
         ~SettingsPage(){}
 
@@ -20,6 +20,7 @@ class SettingsPage: public Page {
 
     private:
         MotorCalibrationCallback motor_calibration_callback_;
+        StrainCalibrationCallback strain_calibration_callback_;
         MessagePage* message_page_ = nullptr;
         
         void handleMenuInput(int position);
@@ -28,15 +29,15 @@ class SettingsPage: public Page {
 
 
         #if SK_STRAIN
-            int maxPositions = 2;
+            int maxPositions = 3;
         #else
-            int maxPositions = 1;
+            int maxPositions = 2;
         #endif
 
         PB_ViewConfig view_config = {
             VIEW_LIST_MENU,
             "Settings",
-            .menu_entries_count = 3,
+            .menu_entries_count = 4,
             .menu_entries = 
             {
                 {
@@ -46,6 +47,14 @@ class SettingsPage: public Page {
                 {
                     "Calibrate motor",
                     ""
+                },
+                {
+                    "Calibrate strain",
+                    ""
+                },
+                {
+                    "Restart device",
+                    "\ue5d5"
                 }
             }
         };
