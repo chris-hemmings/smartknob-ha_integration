@@ -195,7 +195,6 @@ void ConnectivityTask::fetchGeoLocation() {
 #endif
 
     log("WEATHER: fetching location...");
-    reportWeatherStatus("WEATHER: fetching location", "Locating...");
 
     String payload;
     if (httpGetUrl("http://ip-api.com/json/?fields=status,message,lat,lon,timezone,offset,city", payload)) {
@@ -282,24 +281,38 @@ void ConnectivityTask::fetchWeather() {
     if (!geo_location_valid_) {
         fetchGeoLocation();
         if (!geo_location_valid_) {
+            log("WEATHER: skip forecast (no location yet)");
             return;
         }
     }
 
     log("WEATHER: fetching forecast...");
+    mqtt.loop();
 
-    char url[384];
-    snprintf(url, sizeof(url),
-             "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+    char path[320];
+    snprintf(path, sizeof(path),
+             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
              location_latitude_, location_longitude_);
 
     String payload;
-    bool fetched = httpGetUrl(url, payload, 25000);
+    int http_status = 0;
+    static const char* const OPEN_METEO_HOST = "api.open-meteo.com";
+    static const char* const OPEN_METEO_IP = "188.40.99.226";
+
+    bool fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, nullptr);
     if (!fetched) {
-        snprintf(url, sizeof(url),
-                 "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
-                 location_latitude_, location_longitude_);
-        fetched = httpGetUrl(url, payload, 30000);
+        snprintf(buf_, sizeof(buf_), "WEATHER: HTTP failed status %d, trying IP fallback", http_status);
+        log(buf_);
+        fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, OPEN_METEO_IP);
+    }
+    if (!fetched) {
+        char url[384];
+        snprintf(url, sizeof(url), "https://%s%s", OPEN_METEO_HOST, path);
+        fetched = httpGetUrl(url, payload, 18000, &http_status);
+        if (!fetched) {
+            snprintf(buf_, sizeof(buf_), "WEATHER: HTTPS failed status %d", http_status);
+            log(buf_);
+        }
     }
     if (!fetched) {
         snprintf(buf_, sizeof(buf_), "WEATHER: open-meteo failed (try %u)", weather_fail_count_ + 1);
@@ -410,7 +423,10 @@ void ConnectivityTask::run() {
         const uint32_t weather_interval = weather_fail_count_ > 0
             ? WEATHER_RETRY_INTERVAL_MS
             : WEATHER_FETCH_INTERVAL_MS;
-        if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= weather_interval) {
+        const bool weather_due = last_weather_fetch_ms_ == 0
+            || millis() - last_weather_fetch_ms_ >= weather_interval;
+        const bool dns_settled = last_weather_fetch_ms_ != 0 || millis() >= 4000;
+        if (weather_due && dns_settled) {
             fetchWeather();
             last_weather_fetch_ms_ = millis();
         }
@@ -435,7 +451,8 @@ void ConnectivityTask::initWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      snprintf(buf_, sizeof(buf_), "%s", WiFi.localIP().toString().c_str());
+      snprintf(buf_, sizeof(buf_), "WiFi IP %s DNS %s", WiFi.localIP().toString().c_str(),
+               WiFi.dnsIP().toString().c_str());
       log(buf_);
       syncNetworkTime();
       smartknob_id = WiFi.macAddress();

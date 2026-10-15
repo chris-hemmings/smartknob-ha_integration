@@ -10,7 +10,7 @@
 #define SMARTKNOB_ID "sk1" // id used for MQTT autodiscovery - needs to be unique for each device
 
 // Home screen weather/time: location and DST are detected from your public IP (ip-api.com).
-// Optional: pin coordinates if IP geolocation is wrong (timezone/DST still from IP):
-// #define WEATHER_USE_MANUAL_LOCATION
-// #define WEATHER_LATITUDE  -33.7279685f
-// #define WEATHER_LONGITUDE 150.7795456f
+// Pin coordinates when IP geolocation/DNS is unreliable (timezone from Open-Meteo forecast):
+#define WEATHER_USE_MANUAL_LOCATION
+#define WEATHER_LATITUDE  -33.7279685f
+#define WEATHER_LONGITUDE 150.7795456f
