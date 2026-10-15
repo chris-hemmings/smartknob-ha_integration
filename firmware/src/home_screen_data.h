@@ -1,0 +1,29 @@
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+
+struct HomeScreenData {
+    char time_line[16];
+    char date_line[24];
+    char weather_temp[12];
+    char weather_desc[40];
+    int16_t weather_code;
+    char timezone_label[32];
+    bool time_valid;
+    bool weather_valid;
+    bool geo_valid;
+    int32_t utc_offset_sec;
+    float latitude;
+    float longitude;
+    uint32_t weather_version;
+    uint32_t geo_version;
+};
+
+void homeScreenDataInit();
+void homeScreenDataRead(HomeScreenData* out);
+void homeScreenDataWrite(const HomeScreenData* data);
+void homeScreenDataUpdateWeather(const char* temp_line, const char* desc_line, uint32_t version,
+                                 int16_t weather_code);
+void homeScreenDataUpdateTime(const char* time_line, const char* date_line, bool valid);
+void homeScreenDataUpdateGeo(float latitude, float longitude, int32_t utc_offset_sec, const char* timezone_label);

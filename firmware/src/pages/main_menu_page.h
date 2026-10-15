@@ -11,11 +11,14 @@ class MainMenuPage : public Page {
         ~MainMenuPage(){}
 
         PB_SmartKnobConfig * getPageConfig() override;
-        void handleState(PB_SmartKnobState state) override {};
+        void handleState(PB_SmartKnobState state) override;
         void handleUserInput(input_t input, int input_data, PB_SmartKnobState state) override;
     
     private:
-        void handleMenuInput(int position);  
+        void handleMenuInput(int position);
+        static const unsigned long IDLE_TIMEOUT_MS = 5000;
+        unsigned long last_interaction_time_ = 0;
+        int32_t last_position_ = 0;
 
         PB_ViewConfig view_config = {
             VIEW_CIRCLE_MENU,

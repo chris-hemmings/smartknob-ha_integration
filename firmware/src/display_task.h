@@ -30,6 +30,7 @@ class DisplayTask : public Task<DisplayTask> {
         void setBrightness(uint16_t brightness);
         void setLogger(Logger* logger);
         void setI2CMutex(SemaphoreHandle_t * mutex);
+        void applyViewConfig(const PB_SmartKnobConfig& config);
         static void button_event_cb(lv_event_t * event);
 
     protected:
@@ -43,6 +44,8 @@ class DisplayTask : public Task<DisplayTask> {
         QueueHandle_t listener_;
         PB_SmartKnobState state_ = {};
         PB_SmartKnobState latest_state_;
+        PB_SmartKnobConfig pending_view_config_ = {};
+        bool pending_view_config_valid_ = false;
         SemaphoreHandle_t mutex_;
         uint16_t brightness_;
         Logger* logger_;

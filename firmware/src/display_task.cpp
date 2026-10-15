@@ -8,6 +8,8 @@
 #include "views/list_menu_view.h"
 #include "views/dial_view.h"
 #include "views/message_view.h"
+#include "views/home_view.h"
+#include "views/view_util.h"
 
 static const uint8_t LEDC_CHANNEL_LCD_BACKLIGHT = 0;
 
@@ -16,6 +18,22 @@ TFT_eSPI tft_ = TFT_eSPI();
 static lv_disp_draw_buf_t disp_buf;
 
 static DisplayTask* display_task_;
+
+static int32_t resolve_view_type(const PB_SmartKnobConfig& config) {
+    if (config.has_view_config) {
+        return config.view_config.view_type;
+    }
+    if (config.max_position < config.min_position) {
+        return VIEW_HOME_SCREEN;
+    }
+    if (config.max_position - config.min_position > 15) {
+        return VIEW_DIAL;
+    }
+    if (config.position_width_radians >= 0.75f) {
+        return VIEW_LIST_MENU;
+    }
+    return VIEW_CIRCLE_MENU;
+}
 
 #if SK_TOUCH
 CST816D touch(PIN_SDA, PIN_SCL, PIN_TP_RST, PIN_TP_INT);
@@ -45,13 +63,14 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 }
 #endif
 
-DisplayTask::DisplayTask(const uint8_t task_core) : Task{"Display", 8192, 1, task_core} {
+DisplayTask::DisplayTask(const uint8_t task_core) : Task{"Display", 12288, 1, task_core} {
   display_task_ = this;
   knob_state_queue_ = xQueueCreate(1, sizeof(PB_SmartKnobState));
   assert(knob_state_queue_ != NULL);
 
   mutex_ = xSemaphoreCreateMutex();
   assert(mutex_ != NULL);
+  brightness_ = (1u << SK_BACKLIGHT_BIT_DEPTH) - 1u;
 }
 
 DisplayTask::~DisplayTask() {
@@ -144,9 +163,16 @@ void DisplayTask::run() {
     ledcWrite(LEDC_CHANNEL_LCD_BACKLIGHT, UINT16_MAX);
 
     lv_init();
-    lv_color_t *buf = (lv_color_t*) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf);
-    lv_disp_draw_buf_init(&disp_buf, buf, NULL, DISP_BUF_SIZE);
+    lv_color_t* buf = nullptr;
+    uint32_t draw_buf_pixels = DISP_BUF_SIZE;
+    while (draw_buf_pixels >= TFT_WIDTH * 40 && buf == nullptr) {
+        buf = static_cast<lv_color_t*>(heap_caps_malloc(draw_buf_pixels * sizeof(lv_color_t), MALLOC_CAP_DMA));
+        if (buf == nullptr) {
+            draw_buf_pixels -= TFT_WIDTH * 20;
+        }
+    }
+    assert(buf != nullptr);
+    lv_disp_draw_buf_init(&disp_buf, buf, NULL, draw_buf_pixels);
 
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
@@ -171,12 +197,18 @@ void DisplayTask::run() {
 
     init_styles();
 
-    View * current_view;
-
     CircleMenuView circleMenuView = CircleMenuView(screen, display_task_);
     ListMenuView listMenuView = ListMenuView(screen, display_task_);
     DialView dialView = DialView(screen, display_task_);
     MessageView messageView = MessageView(screen, display_task_);
+    HomeView homeView = HomeView(screen, display_task_);
+
+    View* current_view = &homeView;
+    PB_SmartKnobConfig boot_config = {};
+    boot_config.has_view_config = true;
+    boot_config.view_config.view_type = VIEW_HOME_SCREEN;
+    homeView.setupView(boot_config);
+    lv_task_handler();
 
     while(1) {
         PB_SmartKnobState state;
@@ -188,38 +220,56 @@ void DisplayTask::run() {
 
         lv_task_handler(); // Force LVGL to process any pending updates
 
-        bool config_change = (latest_state_.config.detent_strength_unit != state.config.detent_strength_unit)
-        || (latest_state_.config.endstop_strength_unit != state.config.endstop_strength_unit)
-        || (latest_state_.config.min_position != state.config.min_position)
-        || (latest_state_.config.max_position != state.config.max_position);
+        PB_SmartKnobConfig ui_config = state.config;
+        {
+          SemaphoreGuard lock(mutex_);
+          if (pending_view_config_valid_) {
+            ui_config = pending_view_config_;
+            pending_view_config_valid_ = false;
+          }
+        }
 
-        // bool position_change = latest_state_.current_position != state.current_position;
+        const int32_t view_type = resolve_view_type(ui_config);
+        const int32_t prev_view_type = resolve_view_type(latest_state_.config);
+
+        bool config_change = (latest_state_.config.detent_strength_unit != ui_config.detent_strength_unit)
+        || (latest_state_.config.endstop_strength_unit != ui_config.endstop_strength_unit)
+        || (latest_state_.config.min_position != ui_config.min_position)
+        || (latest_state_.config.max_position != ui_config.max_position)
+        || (prev_view_type != view_type)
+        || (latest_state_.config.has_view_config != ui_config.has_view_config)
+        || (ui_config.has_view_config && latest_state_.config.has_view_config
+            && ui_config.view_config.view_type != latest_state_.config.view_config.view_type);
 
         latest_state_ = state;
+        latest_state_.config = ui_config;
 
         if (config_change) {
           clear_screen();
           log("clearing screen");
-          if (state.config.view_config.view_type == VIEW_CIRCLE_MENU) {
+          if (view_type == VIEW_CIRCLE_MENU) {
             current_view = &circleMenuView;
             log("viewing circle menu");
-          }
-          if (state.config.view_config.view_type == VIEW_LIST_MENU) {
+          } else if (view_type == VIEW_LIST_MENU) {
             current_view = &listMenuView;
             log("viewing list menu");
-          }
-          if (state.config.view_config.view_type == VIEW_DIAL) {
+          } else if (view_type == VIEW_DIAL) {
             current_view = &dialView;
             log("viewing dial menu");
-          }
-          if (state.config.view_config.view_type == VIEW_MESSAGE) {
+          } else if (view_type == VIEW_MESSAGE) {
             current_view = &messageView;
             log("viewing message view");
+          } else {
+            current_view = &homeView;
+            log("viewing home screen");
+            reset_screen_background();
           }
-          current_view->setupView(state.config);
+          current_view->setupView(ui_config);
         }
 
-        current_view->updateView(state);
+        PB_SmartKnobState render_state = state;
+        render_state.config = ui_config;
+        current_view->updateView(render_state);
 
         lv_task_handler(); // Ensure UI updates are processed immediately
 
@@ -262,6 +312,12 @@ void DisplayTask::publish(userInput_t user_input) {
 
 void DisplayTask::setI2CMutex(SemaphoreHandle_t * mutex) {
     i2c_mutex_ = mutex;
+}
+
+void DisplayTask::applyViewConfig(const PB_SmartKnobConfig& config) {
+    SemaphoreGuard lock(mutex_);
+    pending_view_config_ = config;
+    pending_view_config_valid_ = true;
 }
 
 #endif
