@@ -19,10 +19,12 @@ class HomePage : public Page {
     private:
         void openMainMenu();
 
-        static constexpr unsigned long KNOB_WAKE_GRACE_MS = 200;
-        static constexpr float KNOB_WAKE_SUB_POSITION = 0.04f;
+        static constexpr unsigned long KNOB_WAKE_GRACE_MS = 800;
+        static constexpr unsigned long KNOB_WAKE_HOLD_MS = 250;
+        static constexpr float KNOB_WAKE_SUB_POSITION = 0.14f;
 
         unsigned long page_enter_ms_ = 0;
+        unsigned long wake_movement_ms_ = 0;
         bool wake_armed_ = false;
         bool anchor_set_ = false;
         bool menu_opened_ = false;

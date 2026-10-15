@@ -9,6 +9,7 @@ PB_SmartKnobConfig* HomePage::getPageConfig() {
     menu_opened_ = false;
     anchor_position_ = 0;
     anchor_sub_position_ = 0;
+    wake_movement_ms_ = 0;
     config_.position = 0;
     config_.sub_position_unit = 0;
     config_.position_nonce++;
