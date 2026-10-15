@@ -127,7 +127,7 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
 
     alignWeatherRow();
 
-    lv_label_set_text(label_time_, "--:--");
+    updateTimeDisplay(0, 0, 0, false);
     lv_label_set_text(label_date_, "Turn knob for menu");
     lv_label_set_text(label_weather_temp_, "--");
     lv_label_set_text(label_weather_desc_, "Loading weather");

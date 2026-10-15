@@ -46,13 +46,28 @@ void HomePage::handleState(PB_SmartKnobState state) {
 
     const int32_t position_delta = state.current_position - anchor_position_;
     const float sub_delta = state.sub_position_unit - anchor_sub_position_;
+    const bool moved = (abs(position_delta) >= 1) || (fabsf(sub_delta) >= KNOB_WAKE_SUB_POSITION);
 
-    if (position_delta != 0 || fabsf(sub_delta) >= KNOB_WAKE_SUB_POSITION) {
+    if (!moved) {
+        wake_movement_ms_ = 0;
+        return;
+    }
+
+    if (wake_movement_ms_ == 0) {
+        wake_movement_ms_ = millis();
+        return;
+    }
+
+    if (millis() - wake_movement_ms_ >= KNOB_WAKE_HOLD_MS) {
         openMainMenu();
     }
 }
 
 void HomePage::handleUserInput(input_t input, int input_data, PB_SmartKnobState state) {
+    if (!wake_armed_) {
+        return;
+    }
+
     switch (input) {
     case INPUT_FORWARD:
     case INPUT_BACK:
