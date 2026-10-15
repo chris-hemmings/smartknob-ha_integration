@@ -105,7 +105,8 @@ void HomeView::updateView(PB_SmartKnobState state) {
             gmtime_r(&local_epoch, &timeinfo);
 
             char time_buf[16];
-            strftime(time_buf, sizeof(time_buf), "%H:%M", &timeinfo);
+            const char colon = (timeinfo.tm_sec % 2 == 0) ? ':' : ' ';
+            snprintf(time_buf, sizeof(time_buf), "%02d%c%02d", timeinfo.tm_hour, colon, timeinfo.tm_min);
             lv_label_set_text(label_time_, time_buf);
 
             char date_buf[24];
