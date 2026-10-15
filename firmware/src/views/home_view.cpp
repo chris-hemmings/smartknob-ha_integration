@@ -1,6 +1,7 @@
 #include "home_view.h"
 
 #include <esp_heap_caps.h>
+#include <stdio.h>
 #include <time.h>
 
 #include "../home_screen_data.h"
@@ -47,6 +48,25 @@ void HomeView::ensureWeatherIconCanvas() {
     alignWeatherRow();
 }
 
+void HomeView::updateTimeDisplay(int hour, int minute, int second, bool valid) {
+    char hour_buf[8];
+    char min_buf[8];
+    if (valid) {
+        snprintf(hour_buf, sizeof(hour_buf), "%02d", hour);
+        snprintf(min_buf, sizeof(min_buf), "%02d", minute);
+        lv_label_set_text(label_time_h_, hour_buf);
+        lv_label_set_text(label_time_sep_, ":");
+        lv_label_set_text(label_time_m_, min_buf);
+        lv_obj_set_style_text_opa(label_time_sep_, (second % 2 == 0) ? LV_OPA_COVER : LV_OPA_TRANSP,
+                                  LV_PART_MAIN);
+    } else {
+        lv_label_set_text(label_time_h_, "--");
+        lv_label_set_text(label_time_sep_, ":");
+        lv_label_set_text(label_time_m_, "--");
+        lv_obj_set_style_text_opa(label_time_sep_, LV_OPA_COVER, LV_PART_MAIN);
+    }
+}
+
 void HomeView::showWeatherIcon(int16_t wmo_code) {
     ensureWeatherIconCanvas();
     if (weather_icon_canvas_ == nullptr) {
@@ -66,11 +86,24 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
 
     reset_screen_background();
 
-    label_time_ = lv_label_create(screen_);
-    lv_obj_set_style_text_font(label_time_, &roboto_light_60, LV_PART_MAIN);
-    lv_obj_set_style_text_color(label_time_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_align(label_time_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(label_time_, LV_ALIGN_CENTER, 0, -54);
+    label_time_h_ = lv_label_create(screen_);
+    lv_obj_set_style_text_font(label_time_h_, &roboto_light_60, LV_PART_MAIN);
+    lv_obj_set_style_text_color(label_time_h_, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_align(label_time_h_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(label_time_h_, LV_ALIGN_CENTER, -42, -54);
+
+    label_time_sep_ = lv_label_create(screen_);
+    lv_obj_set_style_text_font(label_time_sep_, &roboto_light_60, LV_PART_MAIN);
+    lv_obj_set_style_text_color(label_time_sep_, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_align(label_time_sep_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(label_time_sep_, ":");
+    lv_obj_align(label_time_sep_, LV_ALIGN_CENTER, 0, -54);
+
+    label_time_m_ = lv_label_create(screen_);
+    lv_obj_set_style_text_font(label_time_m_, &roboto_light_60, LV_PART_MAIN);
+    lv_obj_set_style_text_color(label_time_m_, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_align(label_time_m_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(label_time_m_, LV_ALIGN_CENTER, 42, -54);
 
     label_date_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_date_, &roboto_light_24, LV_PART_MAIN);
@@ -109,7 +142,11 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
         last_weather_version_ = cached.weather_version;
     }
     if (cached.time_valid) {
-        lv_label_set_text(label_time_, cached.time_line);
+        int hour = 0;
+        int minute = 0;
+        if (sscanf(cached.time_line, "%d:%d", &hour, &minute) == 2) {
+            updateTimeDisplay(hour, minute, 0, true);
+        }
         lv_label_set_text(label_date_, cached.date_line);
     }
 
@@ -134,9 +171,8 @@ void HomeView::updateView(PB_SmartKnobState state) {
             gmtime_r(&local_epoch, &timeinfo);
 
             char time_buf[16];
-            const char colon = (timeinfo.tm_sec % 2 == 0) ? ':' : ' ';
-            snprintf(time_buf, sizeof(time_buf), "%02d%c%02d", timeinfo.tm_hour, colon, timeinfo.tm_min);
-            lv_label_set_text(label_time_, time_buf);
+            snprintf(time_buf, sizeof(time_buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+            updateTimeDisplay(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, true);
 
             char date_buf[24];
             strftime(date_buf, sizeof(date_buf), "%a, %b %d", &timeinfo);
@@ -144,11 +180,11 @@ void HomeView::updateView(PB_SmartKnobState state) {
 
             homeScreenDataUpdateTime(time_buf, date_buf, true);
         } else if (utc > 0) {
-            lv_label_set_text(label_time_, "--:--");
+            updateTimeDisplay(0, 0, 0, false);
             lv_label_set_text(label_date_, "Turn knob for menu");
             homeScreenDataUpdateTime("--:--", "Turn knob for menu", false);
         } else {
-            lv_label_set_text(label_time_, "--:--");
+            updateTimeDisplay(0, 0, 0, false);
             lv_label_set_text(label_date_, "Syncing time...");
             homeScreenDataUpdateTime("--:--", "Syncing time...", false);
         }

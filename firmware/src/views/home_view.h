@@ -17,7 +17,9 @@ class HomeView : public View {
     private:
         DisplayTask* display_task_;
         lv_obj_t* screen_;
-        lv_obj_t* label_time_ = nullptr;
+        lv_obj_t* label_time_h_ = nullptr;
+        lv_obj_t* label_time_sep_ = nullptr;
+        lv_obj_t* label_time_m_ = nullptr;
         lv_obj_t* label_date_ = nullptr;
         lv_obj_t* weather_icon_canvas_ = nullptr;
         lv_color_t* weather_icon_buf_ = nullptr;
@@ -31,4 +33,5 @@ class HomeView : public View {
 
         void ensureWeatherIconCanvas();
         void showWeatherIcon(int16_t wmo_code);
+        void updateTimeDisplay(int hour, int minute, int second, bool valid);
 };
