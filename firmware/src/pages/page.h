@@ -6,7 +6,8 @@
 #include "../input_type.h"
 
 typedef enum {
-    MAIN_MENU_PAGE = 0,
+    HOME_PAGE = 0,
+    MAIN_MENU_PAGE,
     LIGHTS_PAGE,
     LAMPS_PAGE,
     FAN_PAGE,

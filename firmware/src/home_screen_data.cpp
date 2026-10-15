@@ -1,0 +1,74 @@
+#include "home_screen_data.h"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <string.h>
+
+static HomeScreenData data_ = {};
+static SemaphoreHandle_t mutex_;
+
+void homeScreenDataInit() {
+    mutex_ = xSemaphoreCreateMutex();
+    memset(&data_, 0, sizeof(data_));
+    strncpy(data_.time_line, "--:--", sizeof(data_.time_line));
+    strncpy(data_.date_line, "", sizeof(data_.date_line));
+    strncpy(data_.weather_line, "Loading weather", sizeof(data_.weather_line));
+    strncpy(data_.weather_icon, "\ue2bd", sizeof(data_.weather_icon));
+}
+
+void homeScreenDataRead(HomeScreenData* out) {
+    if (out == nullptr || mutex_ == nullptr) {
+        return;
+    }
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        *out = data_;
+        xSemaphoreGive(mutex_);
+    }
+}
+
+void homeScreenDataWrite(const HomeScreenData* in) {
+    if (in == nullptr || mutex_ == nullptr) {
+        return;
+    }
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        data_ = *in;
+        xSemaphoreGive(mutex_);
+    }
+}
+
+void homeScreenDataUpdateWeather(const char* weather_line, const char* weather_icon, uint32_t version) {
+    if (mutex_ == nullptr) {
+        return;
+    }
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (weather_line != nullptr) {
+            strncpy(data_.weather_line, weather_line, sizeof(data_.weather_line) - 1);
+            data_.weather_line[sizeof(data_.weather_line) - 1] = '\0';
+        }
+        if (weather_icon != nullptr) {
+            strncpy(data_.weather_icon, weather_icon, sizeof(data_.weather_icon) - 1);
+            data_.weather_icon[sizeof(data_.weather_icon) - 1] = '\0';
+        }
+        data_.weather_valid = true;
+        data_.weather_version = version;
+        xSemaphoreGive(mutex_);
+    }
+}
+
+void homeScreenDataUpdateTime(const char* time_line, const char* date_line, bool valid) {
+    if (mutex_ == nullptr) {
+        return;
+    }
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (time_line != nullptr) {
+            strncpy(data_.time_line, time_line, sizeof(data_.time_line) - 1);
+            data_.time_line[sizeof(data_.time_line) - 1] = '\0';
+        }
+        if (date_line != nullptr) {
+            strncpy(data_.date_line, date_line, sizeof(data_.date_line) - 1);
+            data_.date_line[sizeof(data_.date_line) - 1] = '\0';
+        }
+        data_.time_valid = valid;
+        xSemaphoreGive(mutex_);
+    }
+}

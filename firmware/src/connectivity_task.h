@@ -58,6 +58,8 @@ private:
     void log(const char* msg);
     void handleCallback(char* topic, byte* payload, unsigned int length);
     void sendMqttKnobStateDiscoveryMsg();
+    void syncNetworkTime();
+    void fetchWeather();
     // Device states
     int light_state_ = 0;
     int lamps_state_ = 0;
@@ -67,5 +69,10 @@ private:
     
     // MQTT message callback
     MqttMessageCallback mqtt_message_callback_ = nullptr;
+
+    bool time_sync_started_ = false;
+    uint32_t last_weather_fetch_ms_ = 0;
+    uint32_t weather_fetch_version_ = 0;
+    static const uint32_t WEATHER_FETCH_INTERVAL_MS = 10UL * 60UL * 1000UL;
 
 };

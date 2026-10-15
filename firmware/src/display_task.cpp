@@ -8,6 +8,7 @@
 #include "views/list_menu_view.h"
 #include "views/dial_view.h"
 #include "views/message_view.h"
+#include "views/home_view.h"
 
 static const uint8_t LEDC_CHANNEL_LCD_BACKLIGHT = 0;
 
@@ -177,6 +178,7 @@ void DisplayTask::run() {
     ListMenuView listMenuView = ListMenuView(screen, display_task_);
     DialView dialView = DialView(screen, display_task_);
     MessageView messageView = MessageView(screen, display_task_);
+    HomeView homeView = HomeView(screen, display_task_);
 
     while(1) {
         PB_SmartKnobState state;
@@ -191,7 +193,8 @@ void DisplayTask::run() {
         bool config_change = (latest_state_.config.detent_strength_unit != state.config.detent_strength_unit)
         || (latest_state_.config.endstop_strength_unit != state.config.endstop_strength_unit)
         || (latest_state_.config.min_position != state.config.min_position)
-        || (latest_state_.config.max_position != state.config.max_position);
+        || (latest_state_.config.max_position != state.config.max_position)
+        || (latest_state_.config.view_config.view_type != state.config.view_config.view_type);
 
         // bool position_change = latest_state_.current_position != state.current_position;
 
@@ -215,6 +218,10 @@ void DisplayTask::run() {
           if (state.config.view_config.view_type == VIEW_MESSAGE) {
             current_view = &messageView;
             log("viewing message view");
+          }
+          if (state.config.view_config.view_type == VIEW_HOME_SCREEN) {
+            current_view = &homeView;
+            log("viewing home screen");
           }
           current_view->setupView(state.config);
         }

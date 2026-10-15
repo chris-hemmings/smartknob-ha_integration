@@ -4,6 +4,10 @@
 #include "ArduinoJson.h"
 #include "secrets.h"
 #include "storage_manager.h"
+#include "home_screen_data.h"
+#include "weather_util.h"
+
+#include <time.h>
 
 WiFiClient client;
 PubSubClient mqtt(client);
@@ -18,7 +22,7 @@ String subscribe_topic;
 ConnectivityTask* ConnectivityTask::instance = nullptr;
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
-    Task("Connectivity", 4096, 1, task_core),
+    Task("Connectivity", 10240, 1, task_core),
     light_state_(0),
     lamps_state_(0),
     fan_state_(0),
@@ -154,8 +158,95 @@ void ConnectivityTask::sendMqttKnobStateDiscoveryMsg() {
     }
 }
 
+void ConnectivityTask::syncNetworkTime() {
+    if (time_sync_started_) {
+        return;
+    }
+    setenv("TZ", WEATHER_TIMEZONE, 1);
+    tzset();
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    time_sync_started_ = true;
+    log("NTP time sync started");
+}
+
+void ConnectivityTask::fetchWeather() {
+    if (WiFi.status() != WL_CONNECTED) {
+        return;
+    }
+
+    char path[256];
+    snprintf(path, sizeof(path),
+             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto",
+             WEATHER_LATITUDE, WEATHER_LONGITUDE);
+
+    WiFiClient http_client;
+    if (!http_client.connect("api.open-meteo.com", 80)) {
+        log("Weather TCP connect failed");
+        return;
+    }
+
+    http_client.printf("GET %s HTTP/1.1\r\nHost: api.open-meteo.com\r\nConnection: close\r\n\r\n", path);
+
+    String payload;
+    bool headers_done = false;
+    const uint32_t start_ms = millis();
+    while (http_client.connected() && millis() - start_ms < 8000) {
+        while (http_client.available()) {
+            const String line = http_client.readStringUntil('\n');
+            if (!headers_done) {
+                if (line == "\r") {
+                    headers_done = true;
+                }
+                continue;
+            }
+            payload += line;
+        }
+    }
+    http_client.stop();
+
+    if (payload.length() == 0) {
+        log("Weather response empty");
+        return;
+    }
+
+    StaticJsonDocument<768> doc;
+    const DeserializationError error = deserializeJson(doc, payload);
+    if (error) {
+        snprintf(buf_, sizeof(buf_), "Weather JSON parse failed: %s", error.c_str());
+        log(buf_);
+        return;
+    }
+
+    JsonObject current = doc["current"];
+    if (current.isNull()) {
+        log("Weather response missing current");
+        return;
+    }
+
+    const float temp_f = current["temperature_2m"] | 0.0f;
+    const int weather_code = current["weather_code"] | -1;
+
+    char description[32];
+    char icon[8];
+    weatherFromWmoCode(weather_code, description, sizeof(description), icon, sizeof(icon));
+
+    char line[32];
+    snprintf(line, sizeof(line), "%.0f°F  %s", temp_f, description);
+
+    weather_fetch_version_++;
+    homeScreenDataUpdateWeather(line, icon, weather_fetch_version_);
+    snprintf(buf_, sizeof(buf_), "Weather updated: %s", line);
+    log(buf_);
+}
+
 void ConnectivityTask::run() {
+    homeScreenDataInit();
     initWiFi();
+    if (WiFi.status() == WL_CONNECTED) {
+        syncNetworkTime();
+        fetchWeather();
+        last_weather_fetch_ms_ = millis();
+    }
     mqtt.setServer(MQTT_SERVER, MQTT_SERVERPORT);
     mqtt.setBufferSize(512);  // Adjust size as needed
     mqtt.setCallback(ConnectivityTask::callback); // Use the static method
@@ -169,7 +260,17 @@ void ConnectivityTask::run() {
             WiFi.reconnect();
             vTaskDelay(pdMS_TO_TICKS(1000)); // Wait a bit before next check
             continue; // Skip MQTT logic until WiFi is back
-        }        
+        }
+
+        if (!time_sync_started_) {
+            syncNetworkTime();
+        }
+
+        if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= WEATHER_FETCH_INTERVAL_MS) {
+            fetchWeather();
+            last_weather_fetch_ms_ = millis();
+        }
+
         if (!mqtt.connected()) {
             long now = millis();
             if (now - lastReconnectAttempt > 5000) {
@@ -219,6 +320,7 @@ void ConnectivityTask::initWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
       snprintf(buf_, sizeof(buf_), "%s", WiFi.localIP().toString().c_str());
       log(buf_);
+      syncNetworkTime();
       smartknob_id = WiFi.macAddress();
       smartknob_id.replace(":", "");  // Remove colons for a cleaner identifier
       log(("Device MAC Address: " + smartknob_id).c_str());
