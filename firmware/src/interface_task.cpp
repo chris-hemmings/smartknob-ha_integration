@@ -478,6 +478,14 @@ void InterfaceTask::publishState() {
 void InterfaceTask::applyConfig(PB_SmartKnobConfig& config, bool from_remote) {
     remote_controlled_ = from_remote;
     latest_config_ = config;
+    if (!config.has_view_config) {
+        config.has_view_config = true;
+    }
     motor_task_.setConfig(config);
+#if SK_DISPLAY
+    if (display_task_ != nullptr) {
+        display_task_->applyViewConfig(config);
+    }
+#endif
 }
 

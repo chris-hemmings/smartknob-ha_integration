@@ -18,6 +18,22 @@ static lv_disp_draw_buf_t disp_buf;
 
 static DisplayTask* display_task_;
 
+static int32_t resolve_view_type(const PB_SmartKnobConfig& config) {
+    if (config.has_view_config) {
+        return config.view_config.view_type;
+    }
+    if (config.max_position < config.min_position) {
+        return VIEW_HOME_SCREEN;
+    }
+    if (config.max_position - config.min_position > 15) {
+        return VIEW_DIAL;
+    }
+    if (config.position_width_radians >= 0.75f) {
+        return VIEW_LIST_MENU;
+    }
+    return VIEW_CIRCLE_MENU;
+}
+
 #if SK_TOUCH
 CST816D touch(PIN_SDA, PIN_SCL, PIN_TP_RST, PIN_TP_INT);
 
@@ -196,22 +212,27 @@ void DisplayTask::run() {
 
         lv_task_handler(); // Force LVGL to process any pending updates
 
-        int32_t view_type = VIEW_HOME_SCREEN;
-        if (state.config.has_view_config) {
-            view_type = state.config.view_config.view_type;
-        } else if (state.config.max_position < state.config.min_position) {
-            // Unbounded rotation config used by the home page
-            view_type = VIEW_HOME_SCREEN;
+        PB_SmartKnobConfig ui_config = state.config;
+        {
+          SemaphoreGuard lock(mutex_);
+          if (pending_view_config_valid_) {
+            ui_config = pending_view_config_;
+            pending_view_config_valid_ = false;
+          }
         }
 
-        bool config_change = (latest_state_.config.detent_strength_unit != state.config.detent_strength_unit)
-        || (latest_state_.config.endstop_strength_unit != state.config.endstop_strength_unit)
-        || (latest_state_.config.min_position != state.config.min_position)
-        || (latest_state_.config.max_position != state.config.max_position)
-        || (latest_state_.config.view_config.view_type != state.config.view_config.view_type)
-        || (latest_state_.config.has_view_config != state.config.has_view_config);
+        const int32_t view_type = resolve_view_type(ui_config);
+        const int32_t prev_view_type = resolve_view_type(latest_state_.config);
+
+        bool config_change = (latest_state_.config.detent_strength_unit != ui_config.detent_strength_unit)
+        || (latest_state_.config.endstop_strength_unit != ui_config.endstop_strength_unit)
+        || (latest_state_.config.min_position != ui_config.min_position)
+        || (latest_state_.config.max_position != ui_config.max_position)
+        || (prev_view_type != view_type)
+        || (latest_state_.config.has_view_config != ui_config.has_view_config);
 
         latest_state_ = state;
+        latest_state_.config = ui_config;
 
         if (config_change) {
           clear_screen();
@@ -232,10 +253,12 @@ void DisplayTask::run() {
             current_view = &homeView;
             log("viewing home screen");
           }
-          current_view->setupView(state.config);
+          current_view->setupView(ui_config);
         }
 
-        current_view->updateView(state);
+        PB_SmartKnobState render_state = state;
+        render_state.config = ui_config;
+        current_view->updateView(render_state);
 
         lv_task_handler(); // Ensure UI updates are processed immediately
 
@@ -278,6 +301,12 @@ void DisplayTask::publish(userInput_t user_input) {
 
 void DisplayTask::setI2CMutex(SemaphoreHandle_t * mutex) {
     i2c_mutex_ = mutex;
+}
+
+void DisplayTask::applyViewConfig(const PB_SmartKnobConfig& config) {
+    SemaphoreGuard lock(mutex_);
+    pending_view_config_ = config;
+    pending_view_config_valid_ = true;
 }
 
 #endif
