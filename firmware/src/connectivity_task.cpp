@@ -24,9 +24,8 @@ ConnectivityTask* ConnectivityTask::instance = nullptr;
 
 void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* screen_line) {
     log(log_msg);
-    static uint32_t status_version = 1000;
-    status_version++;
-    homeScreenDataUpdateWeather("--", screen_line, status_version, -1);
+    weather_fetch_version_++;
+    homeScreenDataUpdateWeather("--", screen_line, weather_fetch_version_, -1);
 }
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
@@ -175,6 +174,15 @@ void ConnectivityTask::syncNetworkTime() {
 }
 
 void ConnectivityTask::fetchGeoLocation() {
+#if defined(WEATHER_USE_MANUAL_LOCATION)
+    location_latitude_ = WEATHER_LATITUDE;
+    location_longitude_ = WEATHER_LONGITUDE;
+    geo_location_valid_ = true;
+    homeScreenDataUpdateGeo(location_latitude_, location_longitude_, utc_offset_sec_, "Home");
+    log("WEATHER: manual lat/lon; timezone from Open-Meteo forecast");
+    return;
+#endif
+
     if (WiFi.status() != WL_CONNECTED) {
         reportWeatherStatus("WEATHER: skip geo (no WiFi)", "No WiFi");
         return;
@@ -184,15 +192,6 @@ void ConnectivityTask::fetchGeoLocation() {
     float longitude = 0;
     int32_t offset_sec = 0;
     char timezone_name[32] = {};
-
-#if defined(WEATHER_USE_MANUAL_LOCATION)
-    location_latitude_ = WEATHER_LATITUDE;
-    location_longitude_ = WEATHER_LONGITUDE;
-    geo_location_valid_ = true;
-    homeScreenDataUpdateGeo(location_latitude_, location_longitude_, utc_offset_sec_, "Home");
-    log("WEATHER: manual lat/lon; timezone from Open-Meteo forecast");
-    return;
-#endif
 
     log("WEATHER: fetching location...");
 
@@ -287,7 +286,9 @@ void ConnectivityTask::fetchWeather() {
     }
 
     log("WEATHER: fetching forecast...");
-    mqtt.loop();
+    if (mqtt.connected()) {
+        mqtt.loop();
+    }
 
     char path[320];
     snprintf(path, sizeof(path),
@@ -299,7 +300,18 @@ void ConnectivityTask::fetchWeather() {
     static const char* const OPEN_METEO_HOST = "api.open-meteo.com";
     static const char* const OPEN_METEO_IP = "188.40.99.226";
 
-    bool fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, nullptr);
+    IPAddress resolved;
+    const bool dns_ok = WiFi.hostByName(OPEN_METEO_HOST, resolved);
+    if (dns_ok) {
+        snprintf(buf_, sizeof(buf_), "WEATHER: DNS %s -> %s", OPEN_METEO_HOST, resolved.toString().c_str());
+        log(buf_);
+    } else {
+        log("WEATHER: DNS lookup failed; using pinned IP");
+    }
+    bool fetched = false;
+    if (dns_ok) {
+        fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, nullptr);
+    }
     if (!fetched) {
         snprintf(buf_, sizeof(buf_), "WEATHER: HTTP failed status %d, trying IP fallback", http_status);
         log(buf_);
@@ -367,10 +379,10 @@ void ConnectivityTask::run() {
     mqtt.setBufferSize(512);
     mqtt.setCallback(ConnectivityTask::callback);
 
+    fetchGeoLocation();
+    last_geo_fetch_ms_ = millis();
     if (WiFi.status() == WL_CONNECTED) {
         syncNetworkTime();
-        fetchGeoLocation();
-        last_geo_fetch_ms_ = millis();
         // Weather runs in the loop so slow HTTP cannot block MQTT setup.
         last_weather_fetch_ms_ = 0;
     }
@@ -381,7 +393,9 @@ void ConnectivityTask::run() {
         if (WiFi.status() != WL_CONNECTED) {
             snprintf(buf_, sizeof(buf_), "WiFi disconnected. Attempting to reconnect...");
             log(buf_);
+#if !defined(WEATHER_USE_MANUAL_LOCATION)
             geo_location_valid_ = false;
+#endif
             WiFi.reconnect();
             vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
