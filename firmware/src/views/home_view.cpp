@@ -4,6 +4,7 @@
 
 #include "../home_screen_data.h"
 #include "styles.h"
+#include "view_util.h"
 
 void HomeView::setupView(PB_SmartKnobConfig config) {
     last_weather_version_ = UINT32_MAX;
