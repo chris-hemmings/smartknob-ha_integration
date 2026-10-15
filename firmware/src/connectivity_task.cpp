@@ -287,7 +287,6 @@ void ConnectivityTask::fetchWeather() {
     }
 
     log("WEATHER: fetching forecast...");
-    reportWeatherStatus("WEATHER: fetching forecast", "Loading weather...");
 
     char url[384];
     snprintf(url, sizeof(url),

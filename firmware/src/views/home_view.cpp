@@ -6,6 +6,9 @@
 #include "styles.h"
 
 void HomeView::setupView(PB_SmartKnobConfig config) {
+    last_weather_version_ = UINT32_MAX;
+    last_time_refresh_ms_ = 0;
+
     label_time_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_time_, &roboto_light_60, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_time_, lv_color_white(), LV_PART_MAIN);
@@ -35,6 +38,19 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_label_set_text(label_date_, "Turn knob for menu");
     lv_label_set_text(label_weather_icon_, "\ue2bd");
     lv_label_set_text(label_weather_, "Loading weather");
+
+    HomeScreenData cached = {};
+    homeScreenDataRead(&cached);
+    if (cached.weather_valid) {
+        lv_label_set_text(label_weather_icon_, cached.weather_icon);
+        lv_label_set_text(label_weather_, cached.weather_line);
+        last_weather_version_ = cached.weather_version;
+    }
+    if (cached.time_valid) {
+        lv_label_set_text(label_time_, cached.time_line);
+        lv_label_set_text(label_date_, cached.date_line);
+    }
+
     lv_task_handler();
 }
 
