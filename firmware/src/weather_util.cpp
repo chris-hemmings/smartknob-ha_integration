@@ -7,81 +7,82 @@
 
 void weatherFromWmoCode(int code, char* description_out, size_t description_len, char* icon_out, size_t icon_len) {
     const char* description = "Unknown";
-    const char* icon = "\ue2bd";  // cloud
+    // Material Symbols Outlined codepoints (matches mdi_40.c font subset).
+    const char* icon = "\uf15c";  // cloud
 
     switch (code) {
         case 0:
-            description = "Clear sky";
-            icon = "\ue430";
+            description = "Clear";
+            icon = "\ue430";  // wb_sunny
             break;
         case 1:
-            description = "Mainly clear";
-            icon = "\ue3c9";
+            description = "Mostly clear";
+            icon = "\uf172";  // partly_cloudy_day
             break;
         case 2:
             description = "Partly cloudy";
-            icon = "\ue3c9";
+            icon = "\uf172";  // partly_cloudy_day
             break;
         case 3:
             description = "Overcast";
-            icon = "\ue2bd";
+            icon = "\uf15c";  // cloud
             break;
         case 45:
         case 48:
             description = "Foggy";
-            icon = "\ue98f";
+            icon = "\ue818";  // foggy
             break;
         case 51:
         case 53:
         case 55:
             description = "Drizzle";
-            icon = "\ue0f5";
+            icon = "\uf176";  // rainy
             break;
         case 56:
         case 57:
             description = "Freezing drizzle";
-            icon = "\ue0f5";
+            icon = "\uf176";
             break;
         case 61:
         case 63:
         case 65:
             description = "Rain";
-            icon = "\ue0f5";
+            icon = "\uf176";
             break;
         case 66:
         case 67:
             description = "Freezing rain";
-            icon = "\ue0f5";
+            icon = "\uf176";
             break;
         case 71:
         case 73:
         case 75:
             description = "Snow";
-            icon = "\ue2dc";
+            icon = "\ue2cd";  // weather_snowy
             break;
         case 77:
             description = "Snow grains";
-            icon = "\ue2dc";
+            icon = "\ue2cd";
             break;
         case 80:
         case 81:
         case 82:
-            description = "Rain showers";
-            icon = "\uf070";
+            description = "Showers";
+            icon = "\uf176";
             break;
         case 85:
         case 86:
             description = "Snow showers";
-            icon = "\ue2dc";
+            icon = "\ue80f";  // snowing
             break;
         case 95:
-            description = "Thunderstorm";
-            icon = "\ueb81";
+            description = "Storm";
+            icon = "\uebdb";  // thunderstorm
             break;
         case 96:
         case 99:
-            description = "Thunderstorm + hail";
-            icon = "\ueb81";
+            description = "Storm + hail";
+            icon = "\uebdb";
             break;
         default:
             break;

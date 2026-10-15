@@ -13,30 +13,31 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_obj_set_style_text_font(label_time_, &roboto_light_60, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_time_, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_align(label_time_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(label_time_, LV_ALIGN_CENTER, 0, -42);
+    // Round 240x240: keep content in the vertical safe area (corners clip below ~y=200).
+    lv_obj_align(label_time_, LV_ALIGN_CENTER, 0, -54);
 
     label_date_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_date_, &roboto_light_24, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_date_, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_align(label_date_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(label_date_, LV_ALIGN_CENTER, 0, 8);
+    lv_obj_align(label_date_, LV_ALIGN_CENTER, 0, -6);
 
     label_weather_icon_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_weather_icon_, &mdi_40, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_weather_icon_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_align(label_weather_icon_, LV_ALIGN_CENTER, 0, 58);
+    lv_obj_align(label_weather_icon_, LV_ALIGN_CENTER, -52, 36);
 
     label_weather_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_weather_, &roboto_light_24, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_weather_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_align(label_weather_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_width(label_weather_, (TFT_WIDTH * 9) / 10);
+    lv_obj_set_style_text_align(label_weather_, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_width(label_weather_, (TFT_WIDTH * 3) / 5);
     lv_label_set_long_mode(label_weather_, LV_LABEL_LONG_WRAP);
-    lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 98);
+    lv_obj_align(label_weather_, LV_ALIGN_CENTER, 18, 36);
 
     lv_label_set_text(label_time_, "--:--");
     lv_label_set_text(label_date_, "Turn knob for menu");
-    lv_label_set_text(label_weather_icon_, "\ue2bd");
+    lv_label_set_text(label_weather_icon_, "\uf15c");
     lv_label_set_text(label_weather_, "Loading weather");
 
     HomeScreenData cached = {};
@@ -95,7 +96,7 @@ void HomeView::updateView(PB_SmartKnobState state) {
         last_weather_version_ = weather.weather_version;
         lv_label_set_text(label_weather_icon_, weather.weather_icon);
         lv_label_set_text(label_weather_, weather.weather_line);
-        lv_obj_align(label_weather_icon_, LV_ALIGN_CENTER, 0, 58);
-        lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 98);
+        lv_obj_align(label_weather_icon_, LV_ALIGN_CENTER, -52, 36);
+        lv_obj_align(label_weather_, LV_ALIGN_CENTER, 18, 36);
     }
 }

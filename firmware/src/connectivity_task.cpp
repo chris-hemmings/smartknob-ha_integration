@@ -26,7 +26,7 @@ void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* scre
     log(log_msg);
     static uint32_t status_version = 1000;
     status_version++;
-    homeScreenDataUpdateWeather(screen_line, "\ue2bd", status_version);
+    homeScreenDataUpdateWeather(screen_line, "\uf15c", status_version);
 }
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :

@@ -13,7 +13,7 @@ void homeScreenDataInit() {
     strncpy(data_.time_line, "--:--", sizeof(data_.time_line));
     strncpy(data_.date_line, "", sizeof(data_.date_line));
     strncpy(data_.weather_line, "Loading weather", sizeof(data_.weather_line));
-    strncpy(data_.weather_icon, "\ue2bd", sizeof(data_.weather_icon));
+    strncpy(data_.weather_icon, "\uf15c", sizeof(data_.weather_icon));
     data_.utc_offset_sec = 0;
     data_.geo_valid = false;
 }
