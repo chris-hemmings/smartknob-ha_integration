@@ -25,7 +25,7 @@ void HomeView::ensureWeatherIconCanvas() {
     weather_icon_canvas_ = lv_canvas_create(screen_);
     lv_canvas_set_buffer(weather_icon_canvas_, weather_icon_buf_, WEATHER_ICON_SIZE, WEATHER_ICON_SIZE,
                          LV_IMG_CF_TRUE_COLOR);
-    lv_obj_align(weather_icon_canvas_, LV_ALIGN_CENTER, 0, 26);
+    lv_obj_align(weather_icon_canvas_, LV_ALIGN_CENTER, -46, 32);
 }
 
 void HomeView::showWeatherIcon(int16_t wmo_code) {
@@ -65,7 +65,7 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_obj_set_style_text_align(label_weather_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_width(label_weather_, (TFT_WIDTH * 4) / 5);
     lv_label_set_long_mode(label_weather_, LV_LABEL_LONG_WRAP);
-    lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 64);
+    lv_obj_align(label_weather_, LV_ALIGN_CENTER, 22, 32);
 
     lv_label_set_text(label_time_, "--:--");
     lv_label_set_text(label_date_, "Turn knob for menu");
@@ -131,6 +131,6 @@ void HomeView::updateView(PB_SmartKnobState state) {
         last_weather_version_ = weather.weather_version;
         lv_label_set_text(label_weather_, weather.weather_line);
         showWeatherIcon(weather.weather_code);
-        lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 64);
+        lv_obj_align(label_weather_, LV_ALIGN_CENTER, 22, 32);
     }
 }
