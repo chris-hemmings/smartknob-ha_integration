@@ -62,8 +62,8 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     label_weather_ = lv_label_create(screen_);
     lv_obj_set_style_text_font(label_weather_, &roboto_light_24, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_weather_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_align(label_weather_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_width(label_weather_, (TFT_WIDTH * 4) / 5);
+    lv_obj_set_style_text_align(label_weather_, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_width(label_weather_, (TFT_WIDTH * 2) / 5);
     lv_label_set_long_mode(label_weather_, LV_LABEL_LONG_WRAP);
     lv_obj_align(label_weather_, LV_ALIGN_CENTER, 22, 32);
 
