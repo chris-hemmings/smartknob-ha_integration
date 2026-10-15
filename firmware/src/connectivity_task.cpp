@@ -30,7 +30,7 @@ void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* scre
 }
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
-    Task("Connectivity", 24576, 1, task_core),
+    Task("Connectivity", 10240, 1, task_core),
     light_state_(0),
     lamps_state_(0),
     fan_state_(0),

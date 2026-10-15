@@ -162,9 +162,16 @@ void DisplayTask::run() {
     ledcWrite(LEDC_CHANNEL_LCD_BACKLIGHT, UINT16_MAX);
 
     lv_init();
-    lv_color_t *buf = (lv_color_t*) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf);
-    lv_disp_draw_buf_init(&disp_buf, buf, NULL, DISP_BUF_SIZE);
+    lv_color_t* buf = nullptr;
+    uint32_t draw_buf_pixels = DISP_BUF_SIZE;
+    while (draw_buf_pixels >= TFT_WIDTH * 40 && buf == nullptr) {
+        buf = static_cast<lv_color_t*>(heap_caps_malloc(draw_buf_pixels * sizeof(lv_color_t), MALLOC_CAP_DMA));
+        if (buf == nullptr) {
+            draw_buf_pixels -= TFT_WIDTH * 20;
+        }
+    }
+    assert(buf != nullptr);
+    lv_disp_draw_buf_init(&disp_buf, buf, NULL, draw_buf_pixels);
 
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
