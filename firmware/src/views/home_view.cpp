@@ -154,8 +154,6 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
 }
 
 void HomeView::updateView(PB_SmartKnobState state) {
-    reset_screen_background();
-
     const uint32_t now = millis();
     if (now - last_time_refresh_ms_ >= 1000) {
         last_time_refresh_ms_ = now;
@@ -165,8 +163,9 @@ void HomeView::updateView(PB_SmartKnobState state) {
 
         time_t utc = 0;
         time(&utc);
-        if (geo.geo_valid && utc > 0) {
-            const time_t local_epoch = utc + geo.utc_offset_sec;
+        if (utc > 0) {
+            const int32_t offset_sec = geo.geo_valid ? geo.utc_offset_sec : 0;
+            const time_t local_epoch = utc + offset_sec;
             struct tm timeinfo;
             gmtime_r(&local_epoch, &timeinfo);
 
@@ -179,10 +178,6 @@ void HomeView::updateView(PB_SmartKnobState state) {
             lv_label_set_text(label_date_, date_buf);
 
             homeScreenDataUpdateTime(time_buf, date_buf, true);
-        } else if (utc > 0) {
-            updateTimeDisplay(0, 0, 0, false);
-            lv_label_set_text(label_date_, "Turn knob for menu");
-            homeScreenDataUpdateTime("--:--", "Turn knob for menu", false);
         } else {
             updateTimeDisplay(0, 0, 0, false);
             lv_label_set_text(label_date_, "Syncing time...");
@@ -192,8 +187,9 @@ void HomeView::updateView(PB_SmartKnobState state) {
 
     HomeScreenData weather = {};
     homeScreenDataRead(&weather);
-    if (weather.weather_version != last_weather_version_
-        || weather.weather_code != last_weather_code_) {
+    if (weather.weather_valid
+        && (weather.weather_version != last_weather_version_
+            || weather.weather_code != last_weather_code_)) {
         last_weather_version_ = weather.weather_version;
         lv_label_set_text(label_weather_temp_, weather.weather_temp);
         lv_label_set_text(label_weather_desc_, weather.weather_desc);
