@@ -40,56 +40,23 @@ ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
     queue_ = xQueueCreate(QUEUE_SIZE, sizeof(Message));
     assert(queue_ != NULL);
     instance = this; // Store this instance
-#if defined(SMARTKNOB_ID)
-    smartknob_id = SMARTKNOB_ID;
-#endif
     loadStoredStates();
 }
 
 ConnectivityTask::~ConnectivityTask() {}
 
-static const char* mqttStateToString(const int state) {
-    switch (state) {
-        case -4: return "connection timeout";
-        case -3: return "connection lost";
-        case -2: return "connect failed";
-        case -1: return "disconnected";
-        case 1: return "bad protocol";
-        case 2: return "bad client id";
-        case 3: return "broker unavailable";
-        case 4: return "bad credentials";
-        case 5: return "not authorized";
-        default: return "unknown";
-    }
-}
-
-void ConnectivityTask::setupMqttTopics() {
-    if (smartknob_id.length() == 0) {
-        return;
-    }
-    discovery_topic = "homeassistant/device_automation/knob_" + smartknob_id + "/action_knob/config";
-    action_topic = "knob/" + smartknob_id + "/action";
-    subscribe_topic = "knob/" + smartknob_id + "/value";
-}
-
 boolean ConnectivityTask::reconnect() {
-    setupMqttTopics();
-    snprintf(buf_, sizeof(buf_), "MQTT connecting to %s:%d as client '%s'...",
-             MQTT_SERVER, MQTT_SERVERPORT, smartknob_id.c_str());
-    log(buf_);
-
-    const bool connected = mqtt.connect(smartknob_id.c_str(), MQTT_USERNAME, MQTT_PW);
+    bool connected = mqtt.connect(smartknob_id.c_str(), MQTT_USERNAME, MQTT_PW);
     if (connected) {
-        snprintf(buf_, sizeof(buf_), "MQTT connected to %s:%d", MQTT_SERVER, MQTT_SERVERPORT);
+        snprintf(buf_, sizeof(buf_), "MQTT Connected...");
         log(buf_);
         snprintf(buf_, sizeof(buf_), "Subscribing to %s", subscribe_topic.c_str());
         log(buf_);
         mqtt.subscribe(subscribe_topic.c_str());
         sendMqttKnobStateDiscoveryMsg();
     } else {
-        const int mqtt_state = mqtt.state();
-        snprintf(buf_, sizeof(buf_), "MQTT connect failed (%s, code %d) -> %s:%d",
-                 mqttStateToString(mqtt_state), mqtt_state, MQTT_SERVER, MQTT_SERVERPORT);
+        int mqttState = mqtt.state();
+        snprintf(buf_, sizeof(buf_), "MQTT Connect Failed! Error Code: %d", mqttState);
         log(buf_);
     }
 
@@ -155,8 +122,10 @@ void ConnectivityTask::handleCallback(char* topic, byte* payload, unsigned int l
 }
 
 void ConnectivityTask::sendMqttKnobStateDiscoveryMsg() {
-    setupMqttTopics();
     DynamicJsonDocument payload(1024);
+    discovery_topic = "homeassistant/device_automation/knob_" + smartknob_id + "/action_knob/config";
+    action_topic = "knob/" + smartknob_id + "/action";
+    subscribe_topic = "knob/" + smartknob_id + "/value";
     // Populate the JSON payload
     payload["automation_type"] = "trigger";
     payload["type"] = "action";
@@ -474,19 +443,12 @@ void ConnectivityTask::initWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      snprintf(buf_, sizeof(buf_), "WiFi IP: %s", WiFi.localIP().toString().c_str());
+      snprintf(buf_, sizeof(buf_), "%s", WiFi.localIP().toString().c_str());
       log(buf_);
       syncNetworkTime();
-#if defined(SMARTKNOB_ID) && (SMARTKNOB_ID[0] != '\0')
-      smartknob_id = SMARTKNOB_ID;
-      snprintf(buf_, sizeof(buf_), "MQTT client id: %s (from SMARTKNOB_ID)", smartknob_id.c_str());
-#else
       smartknob_id = WiFi.macAddress();
-      smartknob_id.replace(":", "");
-      snprintf(buf_, sizeof(buf_), "MQTT client id: %s (from MAC)", smartknob_id.c_str());
-#endif
-      log(buf_);
-      setupMqttTopics();
+      smartknob_id.replace(":", "");  // Remove colons for a cleaner identifier
+      log(("Device MAC Address: " + smartknob_id).c_str());
     } else {
       snprintf(buf_, sizeof(buf_), "Failed to connect to WiFi.");
       log(buf_);

@@ -61,7 +61,6 @@ private:
     void syncNetworkTime();
     void fetchGeoLocation();
     void fetchWeather();
-    void setupMqttTopics();
     void reportWeatherStatus(const char* log_msg, const char* screen_line);
     // Device states
     int light_state_ = 0;
