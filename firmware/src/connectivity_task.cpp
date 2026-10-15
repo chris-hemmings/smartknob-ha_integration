@@ -289,20 +289,25 @@ void ConnectivityTask::fetchWeather() {
     log("WEATHER: fetching forecast...");
     mqtt.loop();
 
-    char url[384];
-    snprintf(url, sizeof(url),
-             "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+    char path[320];
+    snprintf(path, sizeof(path),
+             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
              location_latitude_, location_longitude_);
 
     String payload;
     int http_status = 0;
-    bool fetched = httpGetUrl(url, payload, 12000, &http_status);
+    static const char* const OPEN_METEO_HOST = "api.open-meteo.com";
+    static const char* const OPEN_METEO_IP = "188.40.99.226";
+
+    bool fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, nullptr);
     if (!fetched) {
-        snprintf(buf_, sizeof(buf_), "WEATHER: HTTP failed status %d", http_status);
+        snprintf(buf_, sizeof(buf_), "WEATHER: DNS/HTTP failed status %d, trying IP fallback", http_status);
         log(buf_);
-        snprintf(url, sizeof(url),
-                 "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
-                 location_latitude_, location_longitude_);
+        fetched = httpGetHostPath(OPEN_METEO_HOST, 80, path, payload, 12000, &http_status, OPEN_METEO_IP);
+    }
+    if (!fetched) {
+        char url[384];
+        snprintf(url, sizeof(url), "https://%s%s", OPEN_METEO_HOST, path);
         fetched = httpGetUrl(url, payload, 18000, &http_status);
         if (!fetched) {
             snprintf(buf_, sizeof(buf_), "WEATHER: HTTPS failed status %d", http_status);
@@ -437,7 +442,6 @@ void ConnectivityTask::sendMqttMessage(Message message) {
 
 void ConnectivityTask::initWiFi() {
     WiFi.mode(WIFI_STA);
-    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
     unsigned long startAttemptTime = millis();
@@ -448,7 +452,8 @@ void ConnectivityTask::initWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      snprintf(buf_, sizeof(buf_), "%s", WiFi.localIP().toString().c_str());
+      snprintf(buf_, sizeof(buf_), "WiFi IP %s DNS %s", WiFi.localIP().toString().c_str(),
+               WiFi.dnsIP().toString().c_str());
       log(buf_);
       syncNetworkTime();
       smartknob_id = WiFi.macAddress();
