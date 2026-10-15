@@ -26,7 +26,7 @@ void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* scre
     log(log_msg);
     static uint32_t status_version = 1000;
     status_version++;
-    homeScreenDataUpdateWeather(screen_line, status_version, -1);
+    homeScreenDataUpdateWeather("--", screen_line, status_version, -1);
 }
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
@@ -335,13 +335,14 @@ void ConnectivityTask::fetchWeather() {
     char description[32];
     weatherFromWmoCode(weather_code, description, sizeof(description), nullptr, 0);
 
-    char line[32];
-    snprintf(line, sizeof(line), "%.0fC\n%s", temp_c, description);
+    char temp_line[12];
+    snprintf(temp_line, sizeof(temp_line), "%.0fC", temp_c);
 
     weather_fail_count_ = 0;
     weather_fetch_version_++;
-    homeScreenDataUpdateWeather(line, weather_fetch_version_, static_cast<int16_t>(weather_code));
-    snprintf(buf_, sizeof(buf_), "WEATHER: OK %s", line);
+    homeScreenDataUpdateWeather(temp_line, description, weather_fetch_version_,
+                                static_cast<int16_t>(weather_code));
+    snprintf(buf_, sizeof(buf_), "WEATHER: OK %s %s", temp_line, description);
     log(buf_);
 }
 

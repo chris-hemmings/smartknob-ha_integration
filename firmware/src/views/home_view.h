@@ -21,7 +21,10 @@ class HomeView : public View {
         lv_obj_t* label_date_ = nullptr;
         lv_obj_t* weather_icon_canvas_ = nullptr;
         lv_color_t* weather_icon_buf_ = nullptr;
-        lv_obj_t* label_weather_ = nullptr;
+        lv_obj_t* label_weather_temp_ = nullptr;
+        lv_obj_t* label_weather_desc_ = nullptr;
+
+        void alignWeatherRow();
         uint32_t last_weather_version_ = 0;
         int16_t last_weather_code_ = -999;
         uint32_t last_time_refresh_ms_ = 0;
