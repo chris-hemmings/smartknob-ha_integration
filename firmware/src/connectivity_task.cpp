@@ -56,7 +56,7 @@ boolean ConnectivityTask::reconnect() {
         sendMqttKnobStateDiscoveryMsg();
     } else {
         int mqttState = mqtt.state();
-        snprintf(buf_, sizeof(buf_), "MQTT Connect Failed! Error Code: %d", mqttState);
+        snprintf(buf_, sizeof(buf_), "MQTT connect failed %d -> %s:%d", mqttState, MQTT_SERVER, MQTT_SERVERPORT);
         log(buf_);
     }
 
@@ -287,6 +287,7 @@ void ConnectivityTask::fetchWeather() {
     }
 
     log("WEATHER: fetching forecast...");
+    mqtt.loop();
 
     char url[384];
     snprintf(url, sizeof(url),
@@ -294,12 +295,19 @@ void ConnectivityTask::fetchWeather() {
              location_latitude_, location_longitude_);
 
     String payload;
-    bool fetched = httpGetUrl(url, payload, 25000);
+    int http_status = 0;
+    bool fetched = httpGetUrl(url, payload, 12000, &http_status);
     if (!fetched) {
+        snprintf(buf_, sizeof(buf_), "WEATHER: HTTP failed status %d", http_status);
+        log(buf_);
         snprintf(url, sizeof(url),
                  "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
                  location_latitude_, location_longitude_);
-        fetched = httpGetUrl(url, payload, 30000);
+        fetched = httpGetUrl(url, payload, 18000, &http_status);
+        if (!fetched) {
+            snprintf(buf_, sizeof(buf_), "WEATHER: HTTPS failed status %d", http_status);
+            log(buf_);
+        }
     }
     if (!fetched) {
         snprintf(buf_, sizeof(buf_), "WEATHER: open-meteo failed (try %u)", weather_fail_count_ + 1);
@@ -410,7 +418,11 @@ void ConnectivityTask::run() {
         const uint32_t weather_interval = weather_fail_count_ > 0
             ? WEATHER_RETRY_INTERVAL_MS
             : WEATHER_FETCH_INTERVAL_MS;
-        if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= weather_interval) {
+        const bool weather_due = last_weather_fetch_ms_ == 0
+            || millis() - last_weather_fetch_ms_ >= weather_interval;
+        // Let MQTT get a few attempts before the first (blocking) weather download.
+        const bool weather_boot_ok = last_weather_fetch_ms_ != 0 || millis() >= 6000;
+        if (weather_due && weather_boot_ok) {
             fetchWeather();
             last_weather_fetch_ms_ = millis();
         }
