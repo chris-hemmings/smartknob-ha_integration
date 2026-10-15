@@ -22,10 +22,8 @@ String action_topic;
 String subscribe_topic;
 ConnectivityTask* ConnectivityTask::instance = nullptr;
 
-static void reportWeatherStatus(ConnectivityTask* self, const char* log_msg, const char* screen_line) {
-    if (self != nullptr) {
-        self->log(log_msg);
-    }
+void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* screen_line) {
+    log(log_msg);
     static uint32_t status_version = 1000;
     status_version++;
     homeScreenDataUpdateWeather(screen_line, "\ue2bd", status_version);
@@ -42,24 +40,56 @@ ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
     queue_ = xQueueCreate(QUEUE_SIZE, sizeof(Message));
     assert(queue_ != NULL);
     instance = this; // Store this instance
+#if defined(SMARTKNOB_ID)
+    smartknob_id = SMARTKNOB_ID;
+#endif
     loadStoredStates();
 }
 
 ConnectivityTask::~ConnectivityTask() {}
 
+static const char* mqttStateToString(const int state) {
+    switch (state) {
+        case -4: return "connection timeout";
+        case -3: return "connection lost";
+        case -2: return "connect failed";
+        case -1: return "disconnected";
+        case 1: return "bad protocol";
+        case 2: return "bad client id";
+        case 3: return "broker unavailable";
+        case 4: return "bad credentials";
+        case 5: return "not authorized";
+        default: return "unknown";
+    }
+}
+
+void ConnectivityTask::setupMqttTopics() {
+    if (smartknob_id.length() == 0) {
+        return;
+    }
+    discovery_topic = "homeassistant/device_automation/knob_" + smartknob_id + "/action_knob/config";
+    action_topic = "knob/" + smartknob_id + "/action";
+    subscribe_topic = "knob/" + smartknob_id + "/value";
+}
+
 boolean ConnectivityTask::reconnect() {
-    bool connected = mqtt.connect(smartknob_id.c_str(), MQTT_USERNAME, MQTT_PW);
+    setupMqttTopics();
+    snprintf(buf_, sizeof(buf_), "MQTT connecting to %s:%d as client '%s'...",
+             MQTT_SERVER, MQTT_SERVERPORT, smartknob_id.c_str());
+    log(buf_);
+
+    const bool connected = mqtt.connect(smartknob_id.c_str(), MQTT_USERNAME, MQTT_PW);
     if (connected) {
-        snprintf(buf_, sizeof(buf_), "MQTT Connected...");
+        snprintf(buf_, sizeof(buf_), "MQTT connected to %s:%d", MQTT_SERVER, MQTT_SERVERPORT);
         log(buf_);
         snprintf(buf_, sizeof(buf_), "Subscribing to %s", subscribe_topic.c_str());
         log(buf_);
         mqtt.subscribe(subscribe_topic.c_str());
         sendMqttKnobStateDiscoveryMsg();
     } else {
-        // Get the MQTT state and log the error code for debugging
-        int mqttState = mqtt.state();
-        snprintf(buf_, sizeof(buf_), "MQTT Connect Failed! Error Code: %d", mqttState);
+        const int mqtt_state = mqtt.state();
+        snprintf(buf_, sizeof(buf_), "MQTT connect failed (%s, code %d) -> %s:%d",
+                 mqttStateToString(mqtt_state), mqtt_state, MQTT_SERVER, MQTT_SERVERPORT);
         log(buf_);
     }
 
@@ -125,10 +155,8 @@ void ConnectivityTask::handleCallback(char* topic, byte* payload, unsigned int l
 }
 
 void ConnectivityTask::sendMqttKnobStateDiscoveryMsg() {
+    setupMqttTopics();
     DynamicJsonDocument payload(1024);
-    discovery_topic = "homeassistant/device_automation/knob_" + smartknob_id + "/action_knob/config";
-    action_topic = "knob/" + smartknob_id + "/action";
-    subscribe_topic = "knob/" + smartknob_id + "/value";
     // Populate the JSON payload
     payload["automation_type"] = "trigger";
     payload["type"] = "action";
@@ -179,12 +207,12 @@ void ConnectivityTask::syncNetworkTime() {
 
 void ConnectivityTask::fetchGeoLocation() {
     if (WiFi.status() != WL_CONNECTED) {
-        reportWeatherStatus(this, "WEATHER: skip geo (no WiFi)", "No WiFi");
+        reportWeatherStatus("WEATHER: skip geo (no WiFi)", "No WiFi");
         return;
     }
 
     log("WEATHER: fetching location...");
-    reportWeatherStatus(this, "WEATHER: fetching location", "Locating...");
+    reportWeatherStatus("WEATHER: fetching location", "Locating...");
 
     float latitude = 0;
     float longitude = 0;
@@ -273,7 +301,7 @@ void ConnectivityTask::fetchGeoLocation() {
 
 #if !defined(WEATHER_USE_MANUAL_LOCATION)
     if (latitude == 0.0f && longitude == 0.0f) {
-        reportWeatherStatus(this, "WEATHER: geo failed (no lat/lon)", "Geo failed");
+        reportWeatherStatus("WEATHER: geo failed (no lat/lon)", "Geo failed");
         return;
     }
 #endif
@@ -294,7 +322,7 @@ void ConnectivityTask::fetchGeoLocation() {
 
 void ConnectivityTask::fetchWeather() {
     if (WiFi.status() != WL_CONNECTED) {
-        reportWeatherStatus(this, "WEATHER: skip forecast (no WiFi)", "No WiFi");
+        reportWeatherStatus("WEATHER: skip forecast (no WiFi)", "No WiFi");
         return;
     }
 
@@ -306,7 +334,7 @@ void ConnectivityTask::fetchWeather() {
     }
 
     log("WEATHER: fetching forecast...");
-    reportWeatherStatus(this, "WEATHER: fetching forecast", "Loading weather...");
+    reportWeatherStatus("WEATHER: fetching forecast", "Loading weather...");
 
     char url[384];
     snprintf(url, sizeof(url),
@@ -325,7 +353,7 @@ void ConnectivityTask::fetchWeather() {
         snprintf(buf_, sizeof(buf_), "WEATHER: open-meteo failed (try %u)", weather_fail_count_ + 1);
         log(buf_);
         weather_fail_count_++;
-        reportWeatherStatus(this, buf_, "Weather unavailable");
+        reportWeatherStatus(buf_, "Weather unavailable");
         return;
     }
 
@@ -338,7 +366,7 @@ void ConnectivityTask::fetchWeather() {
         snprintf(buf_, sizeof(buf_), "WEATHER: parse failed (first bytes: %.40s)", payload.c_str());
         log(buf_);
         weather_fail_count_++;
-        reportWeatherStatus(this, buf_, "Bad weather data");
+        reportWeatherStatus(buf_, "Bad weather data");
         return;
     }
 
@@ -446,12 +474,19 @@ void ConnectivityTask::initWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      snprintf(buf_, sizeof(buf_), "%s", WiFi.localIP().toString().c_str());
+      snprintf(buf_, sizeof(buf_), "WiFi IP: %s", WiFi.localIP().toString().c_str());
       log(buf_);
       syncNetworkTime();
+#if defined(SMARTKNOB_ID) && (SMARTKNOB_ID[0] != '\0')
+      smartknob_id = SMARTKNOB_ID;
+      snprintf(buf_, sizeof(buf_), "MQTT client id: %s (from SMARTKNOB_ID)", smartknob_id.c_str());
+#else
       smartknob_id = WiFi.macAddress();
-      smartknob_id.replace(":", "");  // Remove colons for a cleaner identifier
-      log(("Device MAC Address: " + smartknob_id).c_str());
+      smartknob_id.replace(":", "");
+      snprintf(buf_, sizeof(buf_), "MQTT client id: %s (from MAC)", smartknob_id.c_str());
+#endif
+      log(buf_);
+      setupMqttTopics();
     } else {
       snprintf(buf_, sizeof(buf_), "Failed to connect to WiFi.");
       log(buf_);
