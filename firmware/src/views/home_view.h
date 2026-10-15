@@ -19,8 +19,13 @@ class HomeView : public View {
         lv_obj_t* screen_;
         lv_obj_t* label_time_ = nullptr;
         lv_obj_t* label_date_ = nullptr;
-        lv_obj_t* label_weather_icon_ = nullptr;
+        lv_obj_t* weather_icon_canvas_ = nullptr;
+        lv_color_t* weather_icon_buf_ = nullptr;
         lv_obj_t* label_weather_ = nullptr;
         uint32_t last_weather_version_ = 0;
+        int16_t last_weather_code_ = -999;
         uint32_t last_time_refresh_ms_ = 0;
+
+        void ensureWeatherIconCanvas();
+        void showWeatherIcon(int16_t wmo_code);
 };
