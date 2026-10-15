@@ -46,13 +46,14 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 }
 #endif
 
-DisplayTask::DisplayTask(const uint8_t task_core) : Task{"Display", 8192, 1, task_core} {
+DisplayTask::DisplayTask(const uint8_t task_core) : Task{"Display", 12288, 1, task_core} {
   display_task_ = this;
   knob_state_queue_ = xQueueCreate(1, sizeof(PB_SmartKnobState));
   assert(knob_state_queue_ != NULL);
 
   mutex_ = xSemaphoreCreateMutex();
   assert(mutex_ != NULL);
+  brightness_ = (1u << SK_BACKLIGHT_BIT_DEPTH) - 1u;
 }
 
 DisplayTask::~DisplayTask() {
