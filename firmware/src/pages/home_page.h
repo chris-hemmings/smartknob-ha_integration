@@ -17,11 +17,17 @@ class HomePage : public Page {
         void handleUserInput(input_t input, int input_data, PB_SmartKnobState state) override;
 
     private:
-        static constexpr unsigned long KNOB_WAKE_GRACE_MS = 400;
-        static constexpr float KNOB_WAKE_SUB_POSITION = 0.12f;
+        void openMainMenu();
+
+        static constexpr unsigned long KNOB_WAKE_GRACE_MS = 200;
+        static constexpr float KNOB_WAKE_SUB_POSITION = 0.04f;
 
         unsigned long page_enter_ms_ = 0;
         bool wake_armed_ = false;
+        bool anchor_set_ = false;
+        bool menu_opened_ = false;
+        int32_t anchor_position_ = 0;
+        float anchor_sub_position_ = 0;
 
         PB_SmartKnobConfig config_ = {
             .has_view_config = true,
@@ -35,10 +41,10 @@ class HomePage : public Page {
             .min_position = 0,
             .max_position = -1,
             .infinite_scroll = false,
-            .position_width_radians = 8 * PI / 180,
-            .detent_strength_unit = 0,
+            .position_width_radians = 10 * PI / 180,
+            .detent_strength_unit = 0.15f,
             .endstop_strength_unit = 0.2f,
-            .snap_point = 1.1f,
+            .snap_point = 0.55f,
             .detent_positions_count = 0,
             .detent_positions = {},
             .snap_point_bias = 0,

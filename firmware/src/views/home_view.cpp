@@ -32,7 +32,7 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 98);
 
     lv_label_set_text(label_time_, "--:--");
-    lv_label_set_text(label_date_, "Starting...");
+    lv_label_set_text(label_date_, "Turn knob for menu");
     lv_label_set_text(label_weather_icon_, "\ue2bd");
     lv_label_set_text(label_weather_, "Loading weather");
     lv_task_handler();
@@ -64,8 +64,8 @@ void HomeView::updateView(PB_SmartKnobState state) {
             homeScreenDataUpdateTime(time_buf, date_buf, true);
         } else if (utc > 0) {
             lv_label_set_text(label_time_, "--:--");
-            lv_label_set_text(label_date_, "Finding location...");
-            homeScreenDataUpdateTime("--:--", "Finding location...", false);
+            lv_label_set_text(label_date_, "Turn knob for menu");
+            homeScreenDataUpdateTime("--:--", "Turn knob for menu", false);
         } else {
             lv_label_set_text(label_time_, "--:--");
             lv_label_set_text(label_date_, "Syncing time...");
