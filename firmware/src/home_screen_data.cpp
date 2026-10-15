@@ -14,6 +14,8 @@ void homeScreenDataInit() {
     strncpy(data_.date_line, "", sizeof(data_.date_line));
     strncpy(data_.weather_line, "Loading weather", sizeof(data_.weather_line));
     strncpy(data_.weather_icon, "\ue2bd", sizeof(data_.weather_icon));
+    data_.utc_offset_sec = 0;
+    data_.geo_valid = false;
 }
 
 void homeScreenDataRead(HomeScreenData* out) {
@@ -51,6 +53,24 @@ void homeScreenDataUpdateWeather(const char* weather_line, const char* weather_i
         }
         data_.weather_valid = true;
         data_.weather_version = version;
+        xSemaphoreGive(mutex_);
+    }
+}
+
+void homeScreenDataUpdateGeo(float latitude, float longitude, int32_t utc_offset_sec, const char* timezone_label) {
+    if (mutex_ == nullptr) {
+        return;
+    }
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        data_.latitude = latitude;
+        data_.longitude = longitude;
+        data_.utc_offset_sec = utc_offset_sec;
+        data_.geo_valid = true;
+        data_.geo_version++;
+        if (timezone_label != nullptr) {
+            strncpy(data_.timezone_label, timezone_label, sizeof(data_.timezone_label) - 1);
+            data_.timezone_label[sizeof(data_.timezone_label) - 1] = '\0';
+        }
         xSemaphoreGive(mutex_);
     }
 }

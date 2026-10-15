@@ -6,6 +6,7 @@
 #include "storage_manager.h"
 #include "home_screen_data.h"
 #include "weather_util.h"
+#include "http_util.h"
 
 #include <time.h>
 
@@ -162,11 +163,89 @@ void ConnectivityTask::syncNetworkTime() {
     if (time_sync_started_) {
         return;
     }
-    setenv("TZ", WEATHER_TIMEZONE, 1);
-    tzset();
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     time_sync_started_ = true;
     log("NTP time sync started");
+}
+
+void ConnectivityTask::fetchGeoLocation() {
+    if (WiFi.status() != WL_CONNECTED) {
+        return;
+    }
+
+    float latitude = 0;
+    float longitude = 0;
+    int32_t offset_sec = 0;
+    char timezone_name[32] = {};
+
+#if defined(WEATHER_USE_MANUAL_LOCATION)
+    latitude = WEATHER_LATITUDE;
+    longitude = WEATHER_LONGITUDE;
+#endif
+
+    String payload;
+    if (httpGet("ip-api.com", 80, "/json/?fields=status,message,lat,lon,timezone,offset,city", payload)) {
+        StaticJsonDocument<512> doc;
+        const DeserializationError error = deserializeJson(doc, payload);
+        if (!error && doc["status"] == "success") {
+#if !defined(WEATHER_USE_MANUAL_LOCATION)
+            latitude = doc["lat"] | 0.0f;
+            longitude = doc["lon"] | 0.0f;
+#endif
+            offset_sec = doc["offset"] | 0;
+            const char* tz = doc["timezone"] | "";
+            const char* city = doc["city"] | "";
+            if (city[0] != '\0') {
+                strncpy(timezone_name, city, sizeof(timezone_name) - 1);
+            } else if (tz[0] != '\0') {
+                strncpy(timezone_name, tz, sizeof(timezone_name) - 1);
+            }
+        } else {
+            snprintf(buf_, sizeof(buf_), "Geo JSON failed: %s", error.c_str());
+            log(buf_);
+        }
+    } else {
+        log("Geo HTTP request failed");
+    }
+
+    if (offset_sec == 0) {
+        String tz_payload;
+        if (httpGet("worldtimeapi.org", 80, "/api/ip", tz_payload)) {
+            StaticJsonDocument<512> tz_doc;
+            if (!deserializeJson(tz_doc, tz_payload)) {
+                const char* raw_offset = tz_doc["utc_offset"] | "+00:00";
+                int sign = 1;
+                if (raw_offset[0] == '-') {
+                    sign = -1;
+                }
+                int hours = 0;
+                int minutes = 0;
+                sscanf(raw_offset + 1, "%d:%d", &hours, &minutes);
+                offset_sec = sign * (hours * 3600 + minutes * 60);
+            }
+        }
+    }
+
+#if !defined(WEATHER_USE_MANUAL_LOCATION)
+    if (latitude == 0.0f && longitude == 0.0f) {
+        log("Geo location unavailable");
+        return;
+    }
+#endif
+
+    if (offset_sec == 0) {
+        log("Timezone offset unavailable");
+        return;
+    }
+
+    location_latitude_ = latitude;
+    location_longitude_ = longitude;
+    utc_offset_sec_ = offset_sec;
+    geo_location_valid_ = true;
+    homeScreenDataUpdateGeo(latitude, longitude, offset_sec, timezone_name);
+    snprintf(buf_, sizeof(buf_), "Geo: %.4f, %.4f offset %ld sec (%s)",
+             latitude, longitude, (long)offset_sec, timezone_name);
+    log(buf_);
 }
 
 void ConnectivityTask::fetchWeather() {
@@ -174,35 +253,23 @@ void ConnectivityTask::fetchWeather() {
         return;
     }
 
-    char path[256];
-    snprintf(path, sizeof(path),
-             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto",
-             WEATHER_LATITUDE, WEATHER_LONGITUDE);
-
-    WiFiClient http_client;
-    if (!http_client.connect("api.open-meteo.com", 80)) {
-        log("Weather TCP connect failed");
-        return;
-    }
-
-    http_client.printf("GET %s HTTP/1.1\r\nHost: api.open-meteo.com\r\nConnection: close\r\n\r\n", path);
-
-    String payload;
-    bool headers_done = false;
-    const uint32_t start_ms = millis();
-    while (http_client.connected() && millis() - start_ms < 8000) {
-        while (http_client.available()) {
-            const String line = http_client.readStringUntil('\n');
-            if (!headers_done) {
-                if (line == "\r") {
-                    headers_done = true;
-                }
-                continue;
-            }
-            payload += line;
+    if (!geo_location_valid_) {
+        fetchGeoLocation();
+        if (!geo_location_valid_) {
+            return;
         }
     }
-    http_client.stop();
+
+    char path[256];
+    snprintf(path, sizeof(path),
+             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+             location_latitude_, location_longitude_);
+
+    String payload;
+    if (!httpGet("api.open-meteo.com", 80, path, payload)) {
+        log("Weather HTTP request failed");
+        return;
+    }
 
     if (payload.length() == 0) {
         log("Weather response empty");
@@ -223,7 +290,7 @@ void ConnectivityTask::fetchWeather() {
         return;
     }
 
-    const float temp_f = current["temperature_2m"] | 0.0f;
+    const float temp_c = current["temperature_2m"] | 0.0f;
     const int weather_code = current["weather_code"] | -1;
 
     char description[32];
@@ -231,7 +298,7 @@ void ConnectivityTask::fetchWeather() {
     weatherFromWmoCode(weather_code, description, sizeof(description), icon, sizeof(icon));
 
     char line[32];
-    snprintf(line, sizeof(line), "%.0f°F  %s", temp_f, description);
+    snprintf(line, sizeof(line), "%.0f°C  %s", temp_c, description);
 
     weather_fetch_version_++;
     homeScreenDataUpdateWeather(line, icon, weather_fetch_version_);
@@ -244,6 +311,8 @@ void ConnectivityTask::run() {
     initWiFi();
     if (WiFi.status() == WL_CONNECTED) {
         syncNetworkTime();
+        fetchGeoLocation();
+        last_geo_fetch_ms_ = millis();
         fetchWeather();
         last_weather_fetch_ms_ = millis();
     }
@@ -257,6 +326,7 @@ void ConnectivityTask::run() {
         if (WiFi.status() != WL_CONNECTED) {
             snprintf(buf_, sizeof(buf_), "WiFi disconnected. Attempting to reconnect...");
             log(buf_);
+            geo_location_valid_ = false;
             WiFi.reconnect();
             vTaskDelay(pdMS_TO_TICKS(1000)); // Wait a bit before next check
             continue; // Skip MQTT logic until WiFi is back
@@ -264,6 +334,11 @@ void ConnectivityTask::run() {
 
         if (!time_sync_started_) {
             syncNetworkTime();
+        }
+
+        if (last_geo_fetch_ms_ == 0 || millis() - last_geo_fetch_ms_ >= GEO_FETCH_INTERVAL_MS) {
+            fetchGeoLocation();
+            last_geo_fetch_ms_ = millis();
         }
 
         if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= WEATHER_FETCH_INTERVAL_MS) {

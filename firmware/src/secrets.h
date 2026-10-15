@@ -9,13 +9,8 @@
 
 #define SMARTKNOB_ID "sk1" // id used for MQTT autodiscovery - needs to be unique for each device
 
-// Home screen: local weather via Open-Meteo (https://open-meteo.com/) and NTP time.
-#ifndef WEATHER_LATITUDE
-#define WEATHER_LATITUDE 40.7128f
-#endif
-#ifndef WEATHER_LONGITUDE
-#define WEATHER_LONGITUDE -74.0060f
-#endif
-#ifndef WEATHER_TIMEZONE
-#define WEATHER_TIMEZONE "EST5EDT,M3.2.0,M11.1.0"
-#endif
+// Home screen weather/time: location and DST are detected from your public IP (ip-api.com).
+// Optional: pin coordinates if IP geolocation is wrong (timezone/DST still from IP):
+// #define WEATHER_USE_MANUAL_LOCATION
+// #define WEATHER_LATITUDE  -33.7279685f
+// #define WEATHER_LONGITUDE 150.7795456f

@@ -42,8 +42,16 @@ void HomeView::updateView(PB_SmartKnobState state) {
     if (now - last_time_refresh_ms_ >= 1000) {
         last_time_refresh_ms_ = now;
 
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo, 0)) {
+        HomeScreenData geo = {};
+        homeScreenDataRead(&geo);
+
+        time_t utc = 0;
+        time(&utc);
+        if (geo.geo_valid && utc > 0) {
+            const time_t local_epoch = utc + geo.utc_offset_sec;
+            struct tm timeinfo;
+            gmtime_r(&local_epoch, &timeinfo);
+
             char time_buf[16];
             strftime(time_buf, sizeof(time_buf), "%H:%M", &timeinfo);
             lv_label_set_text(label_time_, time_buf);
@@ -53,6 +61,10 @@ void HomeView::updateView(PB_SmartKnobState state) {
             lv_label_set_text(label_date_, date_buf);
 
             homeScreenDataUpdateTime(time_buf, date_buf, true);
+        } else if (utc > 0) {
+            lv_label_set_text(label_time_, "--:--");
+            lv_label_set_text(label_date_, "Finding location...");
+            homeScreenDataUpdateTime("--:--", "Finding location...", false);
         } else {
             lv_label_set_text(label_time_, "--:--");
             lv_label_set_text(label_date_, "Syncing time...");
