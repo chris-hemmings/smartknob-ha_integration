@@ -123,3 +123,50 @@ bool weatherParseOpenMeteoResponse(const char* json, float* temp_c_out, int* wea
     *weather_code_out = static_cast<int>(strtol(code_key + strlen("\"weather_code\":"), nullptr, 10));
     return *weather_code_out >= 0;
 }
+
+bool weatherParseOpenMeteoTimezone(const char* json, int32_t* utc_offset_sec_out, char* tz_label_out,
+                                   size_t tz_label_len) {
+    if (json == nullptr || utc_offset_sec_out == nullptr) {
+        return false;
+    }
+
+    StaticJsonDocument<1024> doc;
+    if (!deserializeJson(doc, json)) {
+        *utc_offset_sec_out = doc["utc_offset_seconds"] | 0;
+        const char* abbr = doc["timezone_abbreviation"] | "";
+        const char* tz = doc["timezone"] | "";
+        if (tz_label_out != nullptr && tz_label_len > 0) {
+            if (abbr[0] != '\0') {
+                strncpy(tz_label_out, abbr, tz_label_len - 1);
+            } else if (tz[0] != '\0') {
+                strncpy(tz_label_out, tz, tz_label_len - 1);
+            } else {
+                tz_label_out[0] = '\0';
+            }
+            tz_label_out[tz_label_len - 1] = '\0';
+        }
+        return true;
+    }
+
+    const char* offset_key = strstr(json, "\"utc_offset_seconds\":");
+    if (offset_key == nullptr) {
+        return false;
+    }
+    *utc_offset_sec_out = static_cast<int32_t>(strtol(offset_key + strlen("\"utc_offset_seconds\":"), nullptr, 10));
+
+    if (tz_label_out != nullptr && tz_label_len > 0) {
+        tz_label_out[0] = '\0';
+        const char* abbr_key = strstr(json, "\"timezone_abbreviation\":\"");
+        if (abbr_key != nullptr) {
+            abbr_key += strlen("\"timezone_abbreviation\":\"");
+            size_t i = 0;
+            while (abbr_key[i] != '\"' && abbr_key[i] != '\0' && i + 1 < tz_label_len) {
+                tz_label_out[i] = abbr_key[i];
+                i++;
+            }
+            tz_label_out[i] = '\0';
+        }
+    }
+
+    return true;
+}

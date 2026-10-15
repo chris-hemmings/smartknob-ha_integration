@@ -180,18 +180,22 @@ void ConnectivityTask::fetchGeoLocation() {
         return;
     }
 
-    log("WEATHER: fetching location...");
-    reportWeatherStatus("WEATHER: fetching location", "Locating...");
-
     float latitude = 0;
     float longitude = 0;
     int32_t offset_sec = 0;
     char timezone_name[32] = {};
 
 #if defined(WEATHER_USE_MANUAL_LOCATION)
-    latitude = WEATHER_LATITUDE;
-    longitude = WEATHER_LONGITUDE;
+    location_latitude_ = WEATHER_LATITUDE;
+    location_longitude_ = WEATHER_LONGITUDE;
+    geo_location_valid_ = true;
+    homeScreenDataUpdateGeo(location_latitude_, location_longitude_, utc_offset_sec_, "Home");
+    log("WEATHER: manual lat/lon; timezone from Open-Meteo forecast");
+    return;
 #endif
+
+    log("WEATHER: fetching location...");
+    reportWeatherStatus("WEATHER: fetching location", "Locating...");
 
     String payload;
     if (httpGetUrl("http://ip-api.com/json/?fields=status,message,lat,lon,timezone,offset,city", payload)) {
@@ -215,27 +219,7 @@ void ConnectivityTask::fetchGeoLocation() {
             log(buf_);
         }
     } else {
-        log("WEATHER: ip-api.com HTTP failed, trying ipapi.co");
-        if (httpGetUrl("https://ipapi.co/json/", payload)) {
-            StaticJsonDocument<512> doc;
-            if (!deserializeJson(doc, payload)) {
-#if !defined(WEATHER_USE_MANUAL_LOCATION)
-                latitude = doc["latitude"] | 0.0f;
-                longitude = doc["longitude"] | 0.0f;
-#endif
-                const char* raw_offset = doc["utc_offset"] | "";
-                if (strlen(raw_offset) >= 5 && (raw_offset[0] == '+' || raw_offset[0] == '-')) {
-                    const int sign = (raw_offset[0] == '-') ? -1 : 1;
-                    const int hours = (raw_offset[1] - '0') * 10 + (raw_offset[2] - '0');
-                    const int minutes = (raw_offset[3] - '0') * 10 + (raw_offset[4] - '0');
-                    offset_sec = sign * (hours * 3600 + minutes * 60);
-                }
-                const char* city = doc["city"] | "";
-                if (city[0] != '\0') {
-                    strncpy(timezone_name, city, sizeof(timezone_name) - 1);
-                }
-            }
-        }
+        log("WEATHER: ip-api.com HTTP failed");
     }
 
     String tz_payload;
@@ -307,14 +291,14 @@ void ConnectivityTask::fetchWeather() {
 
     char url[384];
     snprintf(url, sizeof(url),
-             "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius",
+             "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
              location_latitude_, location_longitude_);
 
     String payload;
     bool fetched = httpGetUrl(url, payload);
     if (!fetched) {
         snprintf(url, sizeof(url),
-                 "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius",
+                 "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
                  location_latitude_, location_longitude_);
         fetched = httpGetUrl(url, payload);
     }
@@ -337,6 +321,16 @@ void ConnectivityTask::fetchWeather() {
         weather_fail_count_++;
         reportWeatherStatus(buf_, "Bad weather data");
         return;
+    }
+
+    int32_t forecast_offset_sec = 0;
+    char forecast_tz[32] = {};
+    if (weatherParseOpenMeteoTimezone(payload.c_str(), &forecast_offset_sec, forecast_tz, sizeof(forecast_tz))) {
+        utc_offset_sec_ = forecast_offset_sec;
+        homeScreenDataUpdateGeo(location_latitude_, location_longitude_, utc_offset_sec_,
+                                forecast_tz[0] != '\0' ? forecast_tz : "Local");
+        snprintf(buf_, sizeof(buf_), "WEATHER: TZ %+ld sec (%s)", (long)utc_offset_sec_, forecast_tz);
+        log(buf_);
     }
 
     char description[32];
@@ -433,6 +427,7 @@ void ConnectivityTask::sendMqttMessage(Message message) {
 
 void ConnectivityTask::initWiFi() {
     WiFi.mode(WIFI_STA);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
     unsigned long startAttemptTime = millis();
