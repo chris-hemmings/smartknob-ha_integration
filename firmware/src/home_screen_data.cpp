@@ -13,7 +13,7 @@ void homeScreenDataInit() {
     strncpy(data_.time_line, "--:--", sizeof(data_.time_line));
     strncpy(data_.date_line, "", sizeof(data_.date_line));
     strncpy(data_.weather_line, "Loading weather", sizeof(data_.weather_line));
-    strncpy(data_.weather_icon, "\uf15c", sizeof(data_.weather_icon));
+    data_.weather_code = -1;
     data_.utc_offset_sec = 0;
     data_.geo_valid = false;
 }
@@ -38,7 +38,7 @@ void homeScreenDataWrite(const HomeScreenData* in) {
     }
 }
 
-void homeScreenDataUpdateWeather(const char* weather_line, const char* weather_icon, uint32_t version) {
+void homeScreenDataUpdateWeather(const char* weather_line, uint32_t version, int16_t weather_code) {
     if (mutex_ == nullptr) {
         return;
     }
@@ -47,10 +47,7 @@ void homeScreenDataUpdateWeather(const char* weather_line, const char* weather_i
             strncpy(data_.weather_line, weather_line, sizeof(data_.weather_line) - 1);
             data_.weather_line[sizeof(data_.weather_line) - 1] = '\0';
         }
-        if (weather_icon != nullptr) {
-            strncpy(data_.weather_icon, weather_icon, sizeof(data_.weather_icon) - 1);
-            data_.weather_icon[sizeof(data_.weather_icon) - 1] = '\0';
-        }
+        data_.weather_code = weather_code;
         data_.weather_valid = true;
         data_.weather_version = version;
         xSemaphoreGive(mutex_);
