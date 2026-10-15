@@ -337,7 +337,7 @@ void ConnectivityTask::fetchWeather() {
     weatherFromWmoCode(weather_code, description, sizeof(description), icon, sizeof(icon));
 
     char line[32];
-    snprintf(line, sizeof(line), "%.0f°C  %s", temp_c, description);
+    snprintf(line, sizeof(line), "%.0fC\n%s", temp_c, description);
 
     weather_fail_count_ = 0;
     weather_fetch_version_++;

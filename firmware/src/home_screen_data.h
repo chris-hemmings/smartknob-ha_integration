@@ -6,7 +6,7 @@
 struct HomeScreenData {
     char time_line[16];
     char date_line[24];
-    char weather_line[32];
+    char weather_line[40];
     char weather_icon[8];
     char timezone_label[32];
     bool time_valid;
