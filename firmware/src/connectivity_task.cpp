@@ -350,31 +350,57 @@ void ConnectivityTask::fetchWeather() {
 void ConnectivityTask::run() {
     homeScreenDataInit();
     initWiFi();
+
+    mqtt.setServer(MQTT_SERVER, MQTT_SERVERPORT);
+    mqtt.setBufferSize(512);
+    mqtt.setCallback(ConnectivityTask::callback);
+
     if (WiFi.status() == WL_CONNECTED) {
         syncNetworkTime();
         fetchGeoLocation();
         last_geo_fetch_ms_ = millis();
-        fetchWeather();
-        last_weather_fetch_ms_ = millis();
+        // Weather runs in the loop so slow HTTP cannot block MQTT setup.
+        last_weather_fetch_ms_ = 0;
     }
-    mqtt.setServer(MQTT_SERVER, MQTT_SERVERPORT);
-    mqtt.setBufferSize(512);  // Adjust size as needed
-    mqtt.setCallback(ConnectivityTask::callback); // Use the static method
-    mqtt.loop();
-    
+
+    bool mqtt_try_immediately = true;
+
     while (1) {
-        // WiFi reconnection logic
         if (WiFi.status() != WL_CONNECTED) {
             snprintf(buf_, sizeof(buf_), "WiFi disconnected. Attempting to reconnect...");
             log(buf_);
             geo_location_valid_ = false;
             WiFi.reconnect();
-            vTaskDelay(pdMS_TO_TICKS(1000)); // Wait a bit before next check
-            continue; // Skip MQTT logic until WiFi is back
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
         }
 
         if (!time_sync_started_) {
             syncNetworkTime();
+        }
+
+        if (!mqtt.connected()) {
+            const long now = millis();
+            if (mqtt_try_immediately || now - lastReconnectAttempt > 5000) {
+                mqtt_try_immediately = false;
+                lastReconnectAttempt = now;
+                if (reconnect()) {
+                    lastReconnectAttempt = 0;
+                }
+            }
+        } else {
+            mqtt.loop();
+            Message message;
+            if (xQueueReceive(queue_, &message, 0) == pdTRUE) {
+                StaticJsonDocument<200> payload;
+                char buffer[256];
+                payload["trigger_name"] = message.trigger_name;
+                payload["trigger_value"] = message.trigger_value;
+                if (serializeJson(payload, buffer, sizeof(buffer)) > sizeof(buffer)) {
+                    return;
+                }
+                mqtt.publish(action_topic.c_str(), buffer);
+            }
         }
 
         if (last_geo_fetch_ms_ == 0 || millis() - last_geo_fetch_ms_ >= GEO_FETCH_INTERVAL_MS) {
@@ -390,35 +416,8 @@ void ConnectivityTask::run() {
             last_weather_fetch_ms_ = millis();
         }
 
-        if (!mqtt.connected()) {
-            long now = millis();
-            if (now - lastReconnectAttempt > 5000) {
-                lastReconnectAttempt = now;
-                // Attempt to reconnect
-                if (reconnect()) {
-                    lastReconnectAttempt = 0;
-                }
-            }
-        } else {
-            // Client connected
-            mqtt.loop();
-            Message message;
-            if (xQueueReceive(queue_, &message, 0) == pdTRUE) {
-                StaticJsonDocument<200> payload;
-                char buffer[256];
-                payload["trigger_name"] = message.trigger_name;
-                payload["trigger_value"] = message.trigger_value;
-                size_t n = serializeJson(payload, buffer);
-                if (serializeJson(payload, buffer, sizeof(buffer)) > sizeof(buffer)) {
-                    return;
-                }
-                mqtt.publish(action_topic.c_str(), buffer);
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));  // Adjust this delay as needed.
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-  
 }
 
 void ConnectivityTask::sendMqttMessage(Message message) {
