@@ -8,24 +8,24 @@
 #include "view_util.h"
 #include "weather_icon_draw.h"
 
-static const int WEATHER_ICON_SIZE = 52;
-// Weather row sits below the date line on the round 240x240 display.
-static const lv_coord_t WEATHER_ICON_X = -68;
-static const lv_coord_t WEATHER_ICON_Y = 58;
-static const lv_coord_t WEATHER_TEXT_X = 8;
-static const lv_coord_t WEATHER_TEMP_Y = 34;
-static const lv_coord_t WEATHER_DESC_Y = 56;
-static const lv_coord_t WEATHER_DESC_WIDTH = 118;
+static const int WEATHER_ICON_SIZE = 48;
+// Left-edge positions on the 240x240 round display (y offset from screen vertical center).
+static const lv_coord_t WEATHER_ICON_LEFT = 26;
+static const lv_coord_t WEATHER_ICON_Y = 52;
+static const lv_coord_t WEATHER_TEXT_LEFT = 82;
+static const lv_coord_t WEATHER_TEMP_Y = 38;
+static const lv_coord_t WEATHER_DESC_Y = 58;
+static const lv_coord_t WEATHER_DESC_WIDTH = 108;
 
 void HomeView::alignWeatherRow() {
     if (weather_icon_canvas_ != nullptr) {
-        lv_obj_align(weather_icon_canvas_, LV_ALIGN_CENTER, WEATHER_ICON_X, WEATHER_ICON_Y);
+        lv_obj_align(weather_icon_canvas_, LV_ALIGN_LEFT_MID, WEATHER_ICON_LEFT, WEATHER_ICON_Y);
     }
     if (label_weather_temp_ != nullptr) {
-        lv_obj_align(label_weather_temp_, LV_ALIGN_CENTER, WEATHER_TEXT_X, WEATHER_TEMP_Y);
+        lv_obj_align(label_weather_temp_, LV_ALIGN_LEFT_MID, WEATHER_TEXT_LEFT, WEATHER_TEMP_Y);
     }
     if (label_weather_desc_ != nullptr) {
-        lv_obj_align(label_weather_desc_, LV_ALIGN_CENTER, WEATHER_TEXT_X, WEATHER_DESC_Y);
+        lv_obj_align(label_weather_desc_, LV_ALIGN_LEFT_MID, WEATHER_TEXT_LEFT, WEATHER_DESC_Y);
     }
 }
 
@@ -82,6 +82,7 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_obj_set_style_text_font(label_weather_temp_, &roboto_light_24, LV_PART_MAIN);
     lv_obj_set_style_text_color(label_weather_temp_, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_align(label_weather_temp_, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_width(label_weather_temp_, 72);
     lv_label_set_long_mode(label_weather_temp_, LV_LABEL_LONG_CLIP);
 
     label_weather_desc_ = lv_label_create(screen_);

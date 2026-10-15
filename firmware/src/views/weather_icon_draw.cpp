@@ -2,7 +2,7 @@
 
 #include <math.h>
 
-static const int ICON_CANVAS_SIZE = 52;
+static const int ICON_CANVAS_SIZE = 48;
 
 static lv_color_t color_hex(uint32_t rgb) {
     return lv_color_make((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);

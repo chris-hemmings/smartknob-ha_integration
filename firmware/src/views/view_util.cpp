@@ -19,13 +19,12 @@ void set_screen_gradient(int value) {
 
 void reset_screen_background() {
     lv_obj_t* screen = lv_scr_act();
-    // Dial pages move bg_main_stop/bg_grad_stop for the brightness fill; the main
-    // menu resets them via set_screen_gradient(255). Home needs a full black screen.
     lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(screen, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, LV_PART_MAIN);
-    set_screen_gradient(0);
+    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+    lv_obj_set_style_bg_main_stop(screen, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_stop(screen, 255, LV_PART_MAIN);
     lv_obj_invalidate(screen);
 }
 
