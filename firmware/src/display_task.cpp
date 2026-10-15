@@ -172,13 +172,18 @@ void DisplayTask::run() {
 
     init_styles();
 
-    View * current_view;
-
     CircleMenuView circleMenuView = CircleMenuView(screen, display_task_);
     ListMenuView listMenuView = ListMenuView(screen, display_task_);
     DialView dialView = DialView(screen, display_task_);
     MessageView messageView = MessageView(screen, display_task_);
     HomeView homeView = HomeView(screen, display_task_);
+
+    View* current_view = &homeView;
+    PB_SmartKnobConfig boot_config = {};
+    boot_config.has_view_config = true;
+    boot_config.view_config.view_type = VIEW_HOME_SCREEN;
+    homeView.setupView(boot_config);
+    lv_task_handler();
 
     while(1) {
         PB_SmartKnobState state;
@@ -190,36 +195,39 @@ void DisplayTask::run() {
 
         lv_task_handler(); // Force LVGL to process any pending updates
 
+        int32_t view_type = VIEW_HOME_SCREEN;
+        if (state.config.has_view_config) {
+            view_type = state.config.view_config.view_type;
+        } else if (state.config.max_position < state.config.min_position) {
+            // Unbounded rotation config used by the home page
+            view_type = VIEW_HOME_SCREEN;
+        }
+
         bool config_change = (latest_state_.config.detent_strength_unit != state.config.detent_strength_unit)
         || (latest_state_.config.endstop_strength_unit != state.config.endstop_strength_unit)
         || (latest_state_.config.min_position != state.config.min_position)
         || (latest_state_.config.max_position != state.config.max_position)
-        || (latest_state_.config.view_config.view_type != state.config.view_config.view_type);
-
-        // bool position_change = latest_state_.current_position != state.current_position;
+        || (latest_state_.config.view_config.view_type != state.config.view_config.view_type)
+        || (latest_state_.config.has_view_config != state.config.has_view_config);
 
         latest_state_ = state;
 
         if (config_change) {
           clear_screen();
           log("clearing screen");
-          if (state.config.view_config.view_type == VIEW_CIRCLE_MENU) {
+          if (view_type == VIEW_CIRCLE_MENU) {
             current_view = &circleMenuView;
             log("viewing circle menu");
-          }
-          if (state.config.view_config.view_type == VIEW_LIST_MENU) {
+          } else if (view_type == VIEW_LIST_MENU) {
             current_view = &listMenuView;
             log("viewing list menu");
-          }
-          if (state.config.view_config.view_type == VIEW_DIAL) {
+          } else if (view_type == VIEW_DIAL) {
             current_view = &dialView;
             log("viewing dial menu");
-          }
-          if (state.config.view_config.view_type == VIEW_MESSAGE) {
+          } else if (view_type == VIEW_MESSAGE) {
             current_view = &messageView;
             log("viewing message view");
-          }
-          if (state.config.view_config.view_type == VIEW_HOME_SCREEN) {
+          } else {
             current_view = &homeView;
             log("viewing home screen");
           }

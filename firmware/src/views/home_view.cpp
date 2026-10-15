@@ -32,9 +32,10 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
     lv_obj_align(label_weather_, LV_ALIGN_CENTER, 0, 98);
 
     lv_label_set_text(label_time_, "--:--");
-    lv_label_set_text(label_date_, "");
+    lv_label_set_text(label_date_, "Starting...");
     lv_label_set_text(label_weather_icon_, "\ue2bd");
     lv_label_set_text(label_weather_, "Loading weather");
+    lv_task_handler();
 }
 
 void HomeView::updateView(PB_SmartKnobState state) {
