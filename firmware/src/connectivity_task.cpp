@@ -30,7 +30,7 @@ void ConnectivityTask::reportWeatherStatus(const char* log_msg, const char* scre
 }
 
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
-    Task("Connectivity", 10240, 1, task_core),
+    Task("Connectivity", 24576, 1, task_core),
     light_state_(0),
     lamps_state_(0),
     fan_state_(0),
@@ -291,16 +291,16 @@ void ConnectivityTask::fetchWeather() {
 
     char url[384];
     snprintf(url, sizeof(url),
-             "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+             "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
              location_latitude_, location_longitude_);
 
     String payload;
-    bool fetched = httpGetUrl(url, payload);
+    bool fetched = httpGetUrl(url, payload, 25000);
     if (!fetched) {
         snprintf(url, sizeof(url),
-                 "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+                 "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
                  location_latitude_, location_longitude_);
-        fetched = httpGetUrl(url, payload);
+        fetched = httpGetUrl(url, payload, 30000);
     }
     if (!fetched) {
         snprintf(buf_, sizeof(buf_), "WEATHER: open-meteo failed (try %u)", weather_fail_count_ + 1);

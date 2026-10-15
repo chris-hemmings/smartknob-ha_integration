@@ -23,18 +23,23 @@ bool httpGetUrl(const char* url, String& body_out, uint32_t timeout_ms) {
 
     HTTPClient http;
     http.setTimeout(timeout_ms);
+    http.setConnectTimeout(timeout_ms);
     http.setUserAgent("SmartKnob/1.0");
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setReuse(false);
 
+    WiFiClient plain_client;
     WiFiClientSecure secure_client;
     const bool use_tls = (strncmp(url, "https://", 8) == 0);
 
     bool began = false;
     if (use_tls) {
         secure_client.setInsecure();
+        secure_client.setHandshakeTimeout(timeout_ms);
         began = http.begin(secure_client, url);
     } else {
-        began = http.begin(url);
+        plain_client.setTimeout(timeout_ms);
+        began = http.begin(plain_client, url);
     }
 
     if (!began) {
