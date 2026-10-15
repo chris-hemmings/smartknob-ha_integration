@@ -1,6 +1,8 @@
 #include "weather_util.h"
 
+#include <ArduinoJson.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void weatherFromWmoCode(int code, char* description_out, size_t description_len, char* icon_out, size_t icon_len) {
@@ -93,4 +95,31 @@ void weatherFromWmoCode(int code, char* description_out, size_t description_len,
         strncpy(icon_out, icon, icon_len - 1);
         icon_out[icon_len - 1] = '\0';
     }
+}
+
+bool weatherParseOpenMeteoResponse(const char* json, float* temp_c_out, int* weather_code_out) {
+    if (json == nullptr || temp_c_out == nullptr || weather_code_out == nullptr) {
+        return false;
+    }
+
+    StaticJsonDocument<1024> doc;
+    const DeserializationError error = deserializeJson(doc, json);
+    if (!error) {
+        JsonObject current = doc["current"];
+        if (!current.isNull()) {
+            *temp_c_out = current["temperature_2m"] | 0.0f;
+            *weather_code_out = current["weather_code"] | -1;
+            return *weather_code_out >= 0;
+        }
+    }
+
+    const char* temp_key = strstr(json, "\"temperature_2m\":");
+    const char* code_key = strstr(json, "\"weather_code\":");
+    if (temp_key == nullptr || code_key == nullptr) {
+        return false;
+    }
+
+    *temp_c_out = strtof(temp_key + strlen("\"temperature_2m\":"), nullptr);
+    *weather_code_out = static_cast<int>(strtol(code_key + strlen("\"weather_code\":"), nullptr, 10));
+    return *weather_code_out >= 0;
 }

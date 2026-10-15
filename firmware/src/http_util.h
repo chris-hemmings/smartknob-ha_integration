@@ -2,4 +2,5 @@
 
 #include <Arduino.h>
 
-bool httpGet(const char* host, uint16_t port, const char* path, String& body_out, uint32_t timeout_ms = 8000);
+// Full URL, e.g. "https://api.open-meteo.com/v1/forecast?..."
+bool httpGetUrl(const char* url, String& body_out, uint32_t timeout_ms = 15000);

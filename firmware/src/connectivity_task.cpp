@@ -22,6 +22,15 @@ String action_topic;
 String subscribe_topic;
 ConnectivityTask* ConnectivityTask::instance = nullptr;
 
+static void reportWeatherStatus(ConnectivityTask* self, const char* log_msg, const char* screen_line) {
+    if (self != nullptr) {
+        self->log(log_msg);
+    }
+    static uint32_t status_version = 1000;
+    status_version++;
+    homeScreenDataUpdateWeather(screen_line, "\ue2bd", status_version);
+}
+
 ConnectivityTask::ConnectivityTask(const uint8_t task_core) :
     Task("Connectivity", 10240, 1, task_core),
     light_state_(0),
@@ -170,8 +179,12 @@ void ConnectivityTask::syncNetworkTime() {
 
 void ConnectivityTask::fetchGeoLocation() {
     if (WiFi.status() != WL_CONNECTED) {
+        reportWeatherStatus(this, "WEATHER: skip geo (no WiFi)", "No WiFi");
         return;
     }
+
+    log("WEATHER: fetching location...");
+    reportWeatherStatus(this, "WEATHER: fetching location", "Locating...");
 
     float latitude = 0;
     float longitude = 0;
@@ -184,7 +197,7 @@ void ConnectivityTask::fetchGeoLocation() {
 #endif
 
     String payload;
-    if (httpGet("ip-api.com", 80, "/json/?fields=status,message,lat,lon,timezone,offset,city", payload)) {
+    if (httpGetUrl("http://ip-api.com/json/?fields=status,message,lat,lon,timezone,offset,city", payload)) {
         StaticJsonDocument<512> doc;
         const DeserializationError error = deserializeJson(doc, payload);
         if (!error && doc["status"] == "success") {
@@ -205,11 +218,37 @@ void ConnectivityTask::fetchGeoLocation() {
             log(buf_);
         }
     } else {
-        log("Geo HTTP request failed");
+        log("WEATHER: ip-api.com HTTP failed, trying ipapi.co");
+        if (httpGetUrl("https://ipapi.co/json/", payload)) {
+            StaticJsonDocument<512> doc;
+            if (!deserializeJson(doc, payload)) {
+#if !defined(WEATHER_USE_MANUAL_LOCATION)
+                latitude = doc["latitude"] | 0.0f;
+                longitude = doc["longitude"] | 0.0f;
+#endif
+                const char* raw_offset = doc["utc_offset"] | "";
+                if (strlen(raw_offset) >= 5 && (raw_offset[0] == '+' || raw_offset[0] == '-')) {
+                    const int sign = (raw_offset[0] == '-') ? -1 : 1;
+                    const int hours = (raw_offset[1] - '0') * 10 + (raw_offset[2] - '0');
+                    const int minutes = (raw_offset[3] - '0') * 10 + (raw_offset[4] - '0');
+                    offset_sec = sign * (hours * 3600 + minutes * 60);
+                }
+                const char* city = doc["city"] | "";
+                if (city[0] != '\0') {
+                    strncpy(timezone_name, city, sizeof(timezone_name) - 1);
+                }
+            }
+        }
     }
 
     String tz_payload;
-    if (httpGet("worldtimeapi.org", 80, "/api/ip", tz_payload)) {
+    if (!tz_payload.length()) {
+        httpGetUrl("http://worldtimeapi.org/api/ip", tz_payload);
+    }
+    if (!tz_payload.length()) {
+        httpGetUrl("https://worldtimeapi.org/api/ip", tz_payload);
+    }
+    if (tz_payload.length()) {
         StaticJsonDocument<768> tz_doc;
         if (!deserializeJson(tz_doc, tz_payload)) {
             if (offset_sec == 0) {
@@ -234,14 +273,13 @@ void ConnectivityTask::fetchGeoLocation() {
 
 #if !defined(WEATHER_USE_MANUAL_LOCATION)
     if (latitude == 0.0f && longitude == 0.0f) {
-        log("Geo location unavailable");
+        reportWeatherStatus(this, "WEATHER: geo failed (no lat/lon)", "Geo failed");
         return;
     }
 #endif
 
     if (offset_sec == 0) {
-        log("Timezone offset unavailable");
-        return;
+        log("WEATHER: timezone offset missing; using UTC for local time");
     }
 
     location_latitude_ = latitude;
@@ -249,13 +287,14 @@ void ConnectivityTask::fetchGeoLocation() {
     utc_offset_sec_ = offset_sec;
     geo_location_valid_ = true;
     homeScreenDataUpdateGeo(latitude, longitude, offset_sec, timezone_name);
-    snprintf(buf_, sizeof(buf_), "Geo: %.4f, %.4f offset %ld sec (%s)",
+    snprintf(buf_, sizeof(buf_), "WEATHER: geo OK %.4f, %.4f TZ %+ld sec (%s)",
              latitude, longitude, (long)offset_sec, timezone_name);
     log(buf_);
 }
 
 void ConnectivityTask::fetchWeather() {
     if (WiFi.status() != WL_CONNECTED) {
+        reportWeatherStatus(this, "WEATHER: skip forecast (no WiFi)", "No WiFi");
         return;
     }
 
@@ -266,46 +305,42 @@ void ConnectivityTask::fetchWeather() {
         }
     }
 
-    char path[256];
-    snprintf(path, sizeof(path),
-             "/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=auto",
+    log("WEATHER: fetching forecast...");
+    reportWeatherStatus(this, "WEATHER: fetching forecast", "Loading weather...");
+
+    char url[384];
+    snprintf(url, sizeof(url),
+             "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius",
              location_latitude_, location_longitude_);
 
     String payload;
-    if (!httpGet("api.open-meteo.com", 80, path, payload)) {
-        log("Weather HTTP request failed");
-        weather_fail_count_++;
-        if (weather_fail_count_ >= 2) {
-            weather_fetch_version_++;
-            homeScreenDataUpdateWeather("Weather unavailable", "\ue2bd", weather_fetch_version_);
-        }
-        return;
+    bool fetched = httpGetUrl(url, payload);
+    if (!fetched) {
+        snprintf(url, sizeof(url),
+                 "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&temperature_unit=celsius",
+                 location_latitude_, location_longitude_);
+        fetched = httpGetUrl(url, payload);
     }
-
-    if (payload.length() == 0) {
-        log("Weather response empty");
-        weather_fail_count_++;
-        return;
-    }
-
-    StaticJsonDocument<768> doc;
-    const DeserializationError error = deserializeJson(doc, payload);
-    if (error) {
-        snprintf(buf_, sizeof(buf_), "Weather JSON parse failed: %s", error.c_str());
+    if (!fetched) {
+        snprintf(buf_, sizeof(buf_), "WEATHER: open-meteo failed (try %u)", weather_fail_count_ + 1);
         log(buf_);
         weather_fail_count_++;
+        reportWeatherStatus(this, buf_, "Weather unavailable");
         return;
     }
 
-    JsonObject current = doc["current"];
-    if (current.isNull()) {
-        log("Weather response missing current");
+    snprintf(buf_, sizeof(buf_), "WEATHER: got %u bytes from open-meteo", payload.length());
+    log(buf_);
+
+    float temp_c = 0.0f;
+    int weather_code = -1;
+    if (!weatherParseOpenMeteoResponse(payload.c_str(), &temp_c, &weather_code)) {
+        snprintf(buf_, sizeof(buf_), "WEATHER: parse failed (first bytes: %.40s)", payload.c_str());
+        log(buf_);
         weather_fail_count_++;
+        reportWeatherStatus(this, buf_, "Bad weather data");
         return;
     }
-
-    const float temp_c = current["temperature_2m"] | 0.0f;
-    const int weather_code = current["weather_code"] | -1;
 
     char description[32];
     char icon[8];
@@ -317,7 +352,7 @@ void ConnectivityTask::fetchWeather() {
     weather_fail_count_ = 0;
     weather_fetch_version_++;
     homeScreenDataUpdateWeather(line, icon, weather_fetch_version_);
-    snprintf(buf_, sizeof(buf_), "Weather updated: %s", line);
+    snprintf(buf_, sizeof(buf_), "WEATHER: OK %s", line);
     log(buf_);
 }
 

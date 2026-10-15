@@ -1,34 +1,59 @@
 #include "http_util.h"
 
+#include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
-bool httpGet(const char* host, uint16_t port, const char* path, String& body_out, uint32_t timeout_ms) {
+static bool trimJsonPayload(String& body_out) {
+    const int start = body_out.indexOf('{');
+    if (start < 0) {
+        return false;
+    }
+    if (start > 0) {
+        body_out = body_out.substring(start);
+    }
+    return true;
+}
+
+bool httpGetUrl(const char* url, String& body_out, uint32_t timeout_ms) {
     body_out = "";
-    WiFiClient http_client;
-    if (!http_client.connect(host, port)) {
+    if (WiFi.status() != WL_CONNECTED) {
         return false;
     }
 
-    http_client.printf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
+    HTTPClient http;
+    http.setTimeout(timeout_ms);
+    http.setUserAgent("SmartKnob/1.0");
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-    const uint32_t start_ms = millis();
-    while (http_client.connected() && millis() - start_ms < timeout_ms) {
-        delay(1);
+    WiFiClientSecure secure_client;
+    const bool use_tls = (strncmp(url, "https://", 8) == 0);
+
+    bool began = false;
+    if (use_tls) {
+        secure_client.setInsecure();
+        began = http.begin(secure_client, url);
+    } else {
+        began = http.begin(url);
     }
 
-    bool headers_done = false;
-    while (http_client.available()) {
-        if (!headers_done) {
-            const String line = http_client.readStringUntil('\n');
-            if (line.length() == 0 || line == "\r") {
-                headers_done = true;
-            }
-            continue;
-        }
-        while (http_client.available()) {
-            body_out += static_cast<char>(http_client.read());
-        }
+    if (!began) {
+        http.end();
+        return false;
     }
-    http_client.stop();
+
+    const int status = http.GET();
+    if (status != HTTP_CODE_OK) {
+        http.end();
+        return false;
+    }
+
+    body_out = http.getString();
+    http.end();
+
+    if (!trimJsonPayload(body_out)) {
+        return false;
+    }
+
     return body_out.length() > 0;
 }
