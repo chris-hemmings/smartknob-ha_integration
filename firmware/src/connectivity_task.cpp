@@ -208,11 +208,11 @@ void ConnectivityTask::fetchGeoLocation() {
         log("Geo HTTP request failed");
     }
 
-    if (offset_sec == 0) {
-        String tz_payload;
-        if (httpGet("worldtimeapi.org", 80, "/api/ip", tz_payload)) {
-            StaticJsonDocument<512> tz_doc;
-            if (!deserializeJson(tz_doc, tz_payload)) {
+    String tz_payload;
+    if (httpGet("worldtimeapi.org", 80, "/api/ip", tz_payload)) {
+        StaticJsonDocument<768> tz_doc;
+        if (!deserializeJson(tz_doc, tz_payload)) {
+            if (offset_sec == 0) {
                 const char* raw_offset = tz_doc["utc_offset"] | "+00:00";
                 int sign = 1;
                 if (raw_offset[0] == '-') {
@@ -223,6 +223,12 @@ void ConnectivityTask::fetchGeoLocation() {
                 sscanf(raw_offset + 1, "%d:%d", &hours, &minutes);
                 offset_sec = sign * (hours * 3600 + minutes * 60);
             }
+#if !defined(WEATHER_USE_MANUAL_LOCATION)
+            if (latitude == 0.0f && longitude == 0.0f) {
+                latitude = tz_doc["latitude"] | 0.0f;
+                longitude = tz_doc["longitude"] | 0.0f;
+            }
+#endif
         }
     }
 
@@ -268,11 +274,17 @@ void ConnectivityTask::fetchWeather() {
     String payload;
     if (!httpGet("api.open-meteo.com", 80, path, payload)) {
         log("Weather HTTP request failed");
+        weather_fail_count_++;
+        if (weather_fail_count_ >= 2) {
+            weather_fetch_version_++;
+            homeScreenDataUpdateWeather("Weather unavailable", "\ue2bd", weather_fetch_version_);
+        }
         return;
     }
 
     if (payload.length() == 0) {
         log("Weather response empty");
+        weather_fail_count_++;
         return;
     }
 
@@ -281,12 +293,14 @@ void ConnectivityTask::fetchWeather() {
     if (error) {
         snprintf(buf_, sizeof(buf_), "Weather JSON parse failed: %s", error.c_str());
         log(buf_);
+        weather_fail_count_++;
         return;
     }
 
     JsonObject current = doc["current"];
     if (current.isNull()) {
         log("Weather response missing current");
+        weather_fail_count_++;
         return;
     }
 
@@ -300,6 +314,7 @@ void ConnectivityTask::fetchWeather() {
     char line[32];
     snprintf(line, sizeof(line), "%.0f°C  %s", temp_c, description);
 
+    weather_fail_count_ = 0;
     weather_fetch_version_++;
     homeScreenDataUpdateWeather(line, icon, weather_fetch_version_);
     snprintf(buf_, sizeof(buf_), "Weather updated: %s", line);
@@ -341,7 +356,10 @@ void ConnectivityTask::run() {
             last_geo_fetch_ms_ = millis();
         }
 
-        if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= WEATHER_FETCH_INTERVAL_MS) {
+        const uint32_t weather_interval = weather_fail_count_ > 0
+            ? WEATHER_RETRY_INTERVAL_MS
+            : WEATHER_FETCH_INTERVAL_MS;
+        if (last_weather_fetch_ms_ == 0 || millis() - last_weather_fetch_ms_ >= weather_interval) {
             fetchWeather();
             last_weather_fetch_ms_ = millis();
         }

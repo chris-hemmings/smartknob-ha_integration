@@ -16,7 +16,7 @@ class MainMenuPage : public Page {
     
     private:
         void handleMenuInput(int position);
-        static const unsigned long IDLE_TIMEOUT_MS = 30000;
+        static const unsigned long IDLE_TIMEOUT_MS = 5000;
         unsigned long last_interaction_time_ = 0;
         int32_t last_position_ = 0;
 

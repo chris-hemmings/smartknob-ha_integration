@@ -80,6 +80,8 @@ private:
     uint32_t last_geo_fetch_ms_ = 0;
     uint32_t weather_fetch_version_ = 0;
     static const uint32_t WEATHER_FETCH_INTERVAL_MS = 10UL * 60UL * 1000UL;
+    static const uint32_t WEATHER_RETRY_INTERVAL_MS = 60UL * 1000UL;
     static const uint32_t GEO_FETCH_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
+    uint8_t weather_fail_count_ = 0;
 
 };
