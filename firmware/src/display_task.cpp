@@ -9,6 +9,7 @@
 #include "views/dial_view.h"
 #include "views/message_view.h"
 #include "views/home_view.h"
+#include "views/view_util.h"
 
 static const uint8_t LEDC_CHANNEL_LCD_BACKLIGHT = 0;
 
@@ -236,7 +237,9 @@ void DisplayTask::run() {
         || (latest_state_.config.min_position != ui_config.min_position)
         || (latest_state_.config.max_position != ui_config.max_position)
         || (prev_view_type != view_type)
-        || (latest_state_.config.has_view_config != ui_config.has_view_config);
+        || (latest_state_.config.has_view_config != ui_config.has_view_config)
+        || (ui_config.has_view_config && latest_state_.config.has_view_config
+            && ui_config.view_config.view_type != latest_state_.config.view_config.view_type);
 
         latest_state_ = state;
         latest_state_.config = ui_config;
@@ -259,6 +262,7 @@ void DisplayTask::run() {
           } else {
             current_view = &homeView;
             log("viewing home screen");
+            reset_screen_background();
           }
           current_view->setupView(ui_config);
         }

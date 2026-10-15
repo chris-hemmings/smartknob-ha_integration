@@ -59,6 +59,8 @@ void HomeView::setupView(PB_SmartKnobConfig config) {
 }
 
 void HomeView::updateView(PB_SmartKnobState state) {
+    reset_screen_background();
+
     const uint32_t now = millis();
     if (now - last_time_refresh_ms_ >= 1000) {
         last_time_refresh_ms_ = now;
