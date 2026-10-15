@@ -13,7 +13,7 @@ static const int WEATHER_ICON_SIZE = 52;
 static const lv_coord_t WEATHER_ICON_LEFT = 22;
 static const lv_coord_t WEATHER_ICON_Y = 58;
 static const lv_coord_t WEATHER_TEXT_LEFT = 88;
-static const lv_coord_t WEATHER_TEMP_Y = 42;
+static const lv_coord_t WEATHER_TEMP_Y = 34;
 static const lv_coord_t WEATHER_DESC_Y = 70;
 static const lv_coord_t WEATHER_DESC_WIDTH = 112;
 
