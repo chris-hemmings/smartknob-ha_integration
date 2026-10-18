@@ -14,6 +14,7 @@
 #include "task.h"
 
 #include "input_type.h"
+#include "pages/home_page.h"
 #include "pages/main_menu_page.h"
 #include "pages/more_page.h"
 #include "pages/lights_page.h"
@@ -82,6 +83,7 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
         SerialProtocolPlaintext plaintext_protocol_;
         SerialProtocolProtobuf proto_protocol_;
 
+        HomePage home_page_;
         MainMenuPage main_menu_page_;
         MorePage more_page_;
         LightsPage lights_page_;

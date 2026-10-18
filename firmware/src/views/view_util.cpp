@@ -17,6 +17,17 @@ void set_screen_gradient(int value) {
     lv_obj_set_style_bg_main_stop(screen, value, LV_PART_MAIN); // Sets the same value for gradient and main - gives sharp line on gradient
 }
 
+void reset_screen_background() {
+    lv_obj_t* screen = lv_scr_act();
+    lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(screen, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+    lv_obj_set_style_bg_main_stop(screen, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_stop(screen, 255, LV_PART_MAIN);
+    lv_obj_invalidate(screen);
+}
+
 void setup_circle_elements(lv_obj_t ** label_desc, lv_obj_t ** arc_dot, lv_obj_t ** arc) {
     lv_obj_t * screen = lv_scr_act();
     lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);

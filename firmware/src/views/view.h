@@ -8,7 +8,8 @@ typedef enum {
     VIEW_LIST_MENU,
     VIEW_DIAL,
     VIEW_MESSAGE,
-    VIEW_GRID_MENU
+    VIEW_GRID_MENU,
+    VIEW_HOME_SCREEN,
 } view_t;
 
 class View {

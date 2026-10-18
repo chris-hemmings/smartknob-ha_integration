@@ -45,7 +45,7 @@ void ClimatePage::handleState(PB_SmartKnobState state) {
     // Check if timeout has elapsed
     if (millis() - last_interaction_time_ > TIMEOUT_MS) {
         if (page_change_callback_) {
-            page_change_callback_(MAIN_MENU_PAGE);
+            page_change_callback_(HOME_PAGE);
         }
     } 
 }
@@ -59,14 +59,14 @@ void ClimatePage::handleUserInput(input_t input, int input_data, PB_SmartKnobSta
     case INPUT_BACK:
     {
         if (page_change_callback_) {
-            page_change_callback_(MAIN_MENU_PAGE);
+            page_change_callback_(HOME_PAGE);
         }
         break;
     }
     case INPUT_FORWARD:
     {
         if (page_change_callback_) {
-            page_change_callback_(MAIN_MENU_PAGE);
+            page_change_callback_(HOME_PAGE);
         }
         break;
     }    

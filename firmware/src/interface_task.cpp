@@ -39,6 +39,7 @@ InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, Dis
         proto_protocol_(stream_, [this] (PB_SmartKnobConfig& config) {
             applyConfig(config, true);
         }),
+        home_page_(),
         main_menu_page_(),
         more_page_(),
         lights_page_(connectivity_task_),
@@ -200,11 +201,14 @@ void InterfaceTask::run() {
     plaintext_protocol_.setProtocolChangeCallback(protocol_change_callback);
     proto_protocol_.setProtocolChangeCallback(protocol_change_callback);
 
-    Page* current_page = &main_menu_page_;
+    Page* current_page = &home_page_;
     applyConfig(*current_page->getPageConfig(), false);
 
     PageChangeCallback page_change_callback = [this, &current_page] (page_t page) {
         switch (page) {
+            case HOME_PAGE:
+                current_page = &home_page_;
+                break;
             case MAIN_MENU_PAGE:
                 current_page = &main_menu_page_;
                 break;
@@ -242,6 +246,7 @@ void InterfaceTask::run() {
         applyConfig(*current_page->getPageConfig(), false);
     };
 
+    home_page_.setPageChangeCallback(page_change_callback);
     main_menu_page_.setPageChangeCallback(page_change_callback);
     more_page_.setPageChangeCallback(page_change_callback);
     lights_page_.setPageChangeCallback(page_change_callback);
@@ -473,6 +478,14 @@ void InterfaceTask::publishState() {
 void InterfaceTask::applyConfig(PB_SmartKnobConfig& config, bool from_remote) {
     remote_controlled_ = from_remote;
     latest_config_ = config;
+    if (!config.has_view_config) {
+        config.has_view_config = true;
+    }
     motor_task_.setConfig(config);
+#if SK_DISPLAY
+    if (display_task_ != nullptr) {
+        display_task_->applyViewConfig(config);
+    }
+#endif
 }
 
